@@ -183,10 +183,9 @@ def _message_to_json_value(message: Message, opts: ToJsonOptions) -> JsonValue:
         result[json_key] = json_value
 
     # Extension fields
-    if opts.registry and (uf := message._unknown_fields):
-        for field_number in uf:
-            ext_desc = opts.registry.extension_for(message._desc, field_number)
-            if not ext_desc:
+    if opts.registry:
+        for ext_desc in opts.registry.extensions_for(message):
+            if ext_desc.type not in message:
                 continue
             value = message[ext_desc.type]
             match field_value := ext_desc.value:
