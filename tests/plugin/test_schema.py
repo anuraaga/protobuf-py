@@ -91,7 +91,9 @@ class TestSchema:
                 f.print(dep_file.messages[0])
 
             resp = protoc.run_plugin(
-                Plugin(generate), _PROTO3_FILES, files_to_generate=["input.proto"]
+                Plugin(generate),
+                _PROTO3_FILES,
+                files_to_generate=["input.proto", "dep.proto"],
             )
             assert resp.error == ""
             out_file = next(
@@ -147,11 +149,16 @@ class TestSchema:
         def test_not_py(self, protoc: Protoc) -> None:
             def generate(schema: Schema[None]) -> None:
                 dep_file = next(f for f in schema.all_files if f.name == "dep.proto")
-                f = schema.generate_file(schema.files_to_generate[0], "_pb.pyi")
+                input_file = next(
+                    f for f in schema.files_to_generate if f.name == "input.proto"
+                )
+                f = schema.generate_file(input_file, "_pb.pyi")
                 f.print(dep_file.messages[0])
 
             resp = protoc.run_plugin(
-                Plugin(generate), _PROTO3_FILES, files_to_generate=["input.proto"]
+                Plugin(generate),
+                _PROTO3_FILES,
+                files_to_generate=["input.proto", "dep.proto"],
             )
             assert resp.error == ""
             out_file = next((f for f in resp.file if f.name == "input_pb.pyi"), None)

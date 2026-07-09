@@ -334,12 +334,15 @@ class _File:
         return ident
 
     def _relativize(self, ident: Ident) -> Ident:
+        type_only = ident.type_only or self._type_checking
+        if (
+            ident._desc is not None
+            and _desc_file(ident._desc).name not in self._file_to_generate
+        ):
+            return _absolute_ident(ident, type_only=type_only)
+
         if not _is_relative(ident.module):
-            return Ident(
-                ident.name,
-                ident.module,
-                type_only=ident.type_only or self._type_checking,
-            )
+            return Ident(ident.name, ident.module, type_only=type_only)
 
         self_segments = _module_segments(self.module)
         import_segments = _module_segments(ident.module)
@@ -352,9 +355,7 @@ class _File:
             shared = _shared_prefix_len(package_segments, import_segments)
             leading_dots = len(package_segments) - shared + 1
             path = "." * leading_dots + ".".join(import_segments[shared:])
-        return Module(path).ident(
-            ident.name, type_only=ident.type_only or self._type_checking
-        )
+        return Module(path).ident(ident.name, type_only=type_only)
 
 
 def write(file: _File, path: str, *, no_fmt_off: bool = False) -> str:
@@ -465,6 +466,19 @@ def _desc_ident(
     return ident
 
 
+def _desc_file(desc: DescEnum | DescMessage | DescExtension | DescFile) -> DescFile:
+    return desc if isinstance(desc, DescFile) else desc.file
+
+
+def _absolute_ident(ident: Ident, *, type_only: bool) -> Ident:
+    module_path = ident.module.path.removeprefix(".")
+    if module_path == "" and isinstance(ident._desc, DescFile):
+        module_path = ident.name
+    return Ident(
+        ident.name, Module(module_path), type_only=type_only, _desc=ident._desc
+    )
+
+
 def _use_wkt_module(desc: DescFile, file_to_generate: frozenset[str]) -> bool:
     """Return True if the descriptor should be imported from protobuf.wkt."""
     # Well-known types are imported from protobuf.wkt unless the
@@ -483,8 +497,24 @@ def _write_imports(
     # Ruff splits the imports into groups of std, global, and relative. We also do the same:
     for group in _group_and_sort_imports(imports):
         for module, idents in group.items():
-            deduped = sorted({aliases.resolve_import(ident) for ident in idents})
-            lines.append(f"{indent}from {module.path} import {', '.join(deduped)}")
+            module_imports = [
+                ident for ident in idents if _is_module_import(module, ident)
+            ]
+            lines.extend(
+                f"{indent}import {import_}"
+                for import_ in sorted(
+                    {aliases.resolve_import(ident) for ident in module_imports}
+                )
+            )
+
+            from_imports = [
+                ident for ident in idents if not _is_module_import(module, ident)
+            ]
+            if from_imports:
+                deduped = sorted(
+                    {aliases.resolve_import(ident) for ident in from_imports}
+                )
+                lines.append(f"{indent}from {module.path} import {', '.join(deduped)}")
 
         lines.append("")
 
@@ -595,6 +625,11 @@ def _flatten(args: Iterable[object]) -> Iterator[object]:
 def _is_relative(module: Module) -> bool:
     """Return True if the module path is a relative import."""
     return module.path.startswith(".")
+
+
+def _is_module_import(module: Module, ident: Ident) -> bool:
+    """Return True if the identifier imports a top-level module itself."""
+    return isinstance(ident._desc, DescFile) and module.path == ident.name
 
 
 def _module_segments(module: Module) -> list[str]:

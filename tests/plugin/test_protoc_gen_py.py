@@ -128,3 +128,32 @@ class TestOptions:
             '''
             ).lstrip()
         )
+
+    def test_external_dependency(self, protoc: Protoc) -> None:
+        resp = protoc.run_plugin(
+            Plugin(_generate, options=_Options),
+            {
+                "app/main.proto": """
+                syntax = "proto3";
+                package app;
+                import "buf/validate/validate.proto";
+                message Main {
+                    buf.validate.Rule rule = 1;
+                }
+                """,
+                "buf/validate/validate.proto": """
+                syntax = "proto3";
+                package buf.validate;
+                message Rule {}
+                """,
+            },
+            files_to_generate=["app/main.proto"],
+        )
+
+        assert resp.error == ""
+        files = {f.name: f.content for f in resp.file}
+        assert set(files) == {"__init__.py", "app/__init__.py", "app/main_pb.py"}
+        main = files["app/main_pb.py"]
+        assert "from buf.validate import validate_pb" in main
+        assert "from buf.validate.validate_pb import Rule" in main
+        assert "from ..buf.validate" not in main

@@ -688,7 +688,107 @@ class TestDescriptorImports:
             file=_File(
                 path="test_pb.py",
                 module=Module.for_desc(desc, "_pb"),
-                file_to_generate=frozenset(),
+                file_to_generate=frozenset(["input.proto", "b.proto", "pkg/b.proto"]),
+                plugin_name="test",
+                plugin_version="0.0.0",
+                parameter="",
+            ),
+        )
+
+    def test_dependency_not_generated(self, protoc: Protoc) -> None:
+        files = protoc.compile(
+            {
+                "app/main.proto": """
+                syntax = "proto3";
+                package app;
+                import "buf/validate/validate.proto";
+                message Main {
+                    buf.validate.Rule rule = 1;
+                }
+                """,
+                "buf/validate/validate.proto": """
+                syntax = "proto3";
+                package buf.validate;
+                message Rule {}
+                """,
+            },
+            "include_imports",
+            "retain_options",
+            "experimental_editions",
+            "include_source_info",
+        )
+        desc = files["app/main.proto"]
+        dep = files["buf/validate/validate.proto"]
+
+        def write(f: File) -> None:
+            f.print(dep, ".desc()")
+            f.print("rule: ", dep.messages[0])
+
+        _test_generated_file(
+            write,
+            """\
+            from __future__ import annotations
+
+            from buf.validate import validate_pb
+            from buf.validate.validate_pb import Rule
+
+
+            validate_pb.desc()
+            rule: Rule
+            """,
+            file=_File(
+                path="app/main_pb.py",
+                module=Module.for_desc(desc, "_pb"),
+                file_to_generate=frozenset([desc.name]),
+                plugin_name="test",
+                plugin_version="0.0.0",
+                parameter="",
+            ),
+        )
+
+    def test_root_dependency_not_generated(self, protoc: Protoc) -> None:
+        files = protoc.compile(
+            {
+                "main.proto": """
+                syntax = "proto3";
+                import "dep.proto";
+                message Main {
+                    Dep dep = 1;
+                }
+                """,
+                "dep.proto": """
+                syntax = "proto3";
+                message Dep {}
+                """,
+            },
+            "include_imports",
+            "retain_options",
+            "experimental_editions",
+            "include_source_info",
+        )
+        desc = files["main.proto"]
+        dep = files["dep.proto"]
+
+        def write(f: File) -> None:
+            f.print(dep, ".desc()")
+            f.print("dep: ", dep.messages[0])
+
+        _test_generated_file(
+            write,
+            """\
+            from __future__ import annotations
+
+            import dep_pb
+            from dep_pb import Dep
+
+
+            dep_pb.desc()
+            dep: Dep
+            """,
+            file=_File(
+                path="main_pb.py",
+                module=Module.for_desc(desc, "_pb"),
+                file_to_generate=frozenset([desc.name]),
                 plugin_name="test",
                 plugin_version="0.0.0",
                 parameter="",
@@ -724,7 +824,7 @@ class TestDescriptorImports:
             file=_File(
                 path="test_pb.py",
                 module=Module.for_desc(desc, "_pb"),
-                file_to_generate=frozenset(),
+                file_to_generate=frozenset([desc.name]),
                 plugin_name="test",
                 plugin_version="0.0.0",
                 parameter="",
@@ -758,7 +858,9 @@ class TestDescriptorImports:
             file=_File(
                 path="test_pb.py",
                 module=Module.for_desc(desc, "_pb"),
-                file_to_generate=frozenset(["google/protobuf/timestamp.proto"]),
+                file_to_generate=frozenset(
+                    [desc.name, "google/protobuf/timestamp.proto"]
+                ),
                 plugin_name="test",
                 plugin_version="0.0.0",
                 parameter="",
@@ -798,7 +900,7 @@ class TestDescriptorImports:
             file=_File(
                 path="test_pb.py",
                 module=Module.for_desc(desc, "_pb"),
-                file_to_generate=frozenset(),
+                file_to_generate=frozenset([desc.name]),
                 plugin_name="test",
                 plugin_version="0.0.0",
                 parameter="",
