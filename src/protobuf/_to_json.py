@@ -210,7 +210,9 @@ def _message_to_json_value(message: Message, opts: ToJsonOptions) -> JsonValue:
 
 
 def to_json(message: Message, opts: ToJsonOptions) -> str:
-    return json.dumps(_message_to_json_value(message, opts))
+    return json.dumps(
+        _message_to_json_value(message, opts), separators=(",", ":"), ensure_ascii=False
+    )
 
 
 def message_to_json_value(
