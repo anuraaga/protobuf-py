@@ -139,7 +139,7 @@ Field names are converted to camelCase per the Protobuf JSON specification:
 ```python
 # Serialize to a JSON string
 text: str = user.to_json()
-# {"firstName": "Homer", "lastName": "Simpson", ...}
+# {"firstName":"Homer","lastName":"Simpson",...}
 
 # Deserialize from a JSON string
 user = User.from_json(text)
