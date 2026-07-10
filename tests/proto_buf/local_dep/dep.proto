@@ -15,6 +15,10 @@ syntax = "proto3";
 
 package local_dep;
 
+import "google/rpc/status.proto";
+
 message Dep {
   string value = 1;
+
+  google.rpc.Status status = 2;
 }

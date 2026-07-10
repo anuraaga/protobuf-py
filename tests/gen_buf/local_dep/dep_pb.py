@@ -22,14 +22,16 @@ from __future__ import annotations
 
 from typing import Literal, TYPE_CHECKING, TypeAlias
 
+from google.rpc import status_pb
 from protobuf import Message
 from protobuf._codegen import file_desc
 
 if TYPE_CHECKING:
+    from google.rpc.status_pb import Status
     from protobuf import DescFile
 
 
-_DepFields: TypeAlias = Literal["value"]
+_DepFields: TypeAlias = Literal["value", "status"]
 
 class Dep(Message[_DepFields]):
     """
@@ -42,9 +44,13 @@ class Dep(Message[_DepFields]):
             ```proto
             string value = 1;
             ```
+        status:
+            ```proto
+            optional google.rpc.Status status = 2;
+            ```
     """
 
-    __slots__ = ("value",)
+    __slots__ = ("value", "status")
 
     if TYPE_CHECKING:
 
@@ -52,15 +58,19 @@ class Dep(Message[_DepFields]):
             self,
             *,
             value: str = "",
+            status: Status | None = None,
         ) -> None:
             pass
 
         value: str
+        status: Status | None
 
 
 _DESC = file_desc(
-    b'\n\x13local_dep/dep.proto\x12\tlocal_dep"\x1b\n\x03Dep\x12\x14\n\x05value\x18\x01 \x01(\tR\x05valueb\x06proto3',
-    [],
+    b'\n\x13local_dep/dep.proto\x12\tlocal_dep\x1a\x17google/rpc/status.proto"G\n\x03Dep\x12\x14\n\x05value\x18\x01 \x01(\tR\x05value\x12*\n\x06status\x18\x02 \x01(\x0b2\x12.google.rpc.StatusR\x06statusb\x06proto3',
+    [
+        status_pb.desc(),
+    ],
     {
         "Dep": Dep,
     },
