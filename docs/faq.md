@@ -63,7 +63,7 @@ Pass `always_emit_implicit=True` to include them:
 ```python
 user = User(first_name="")
 user.to_json()                          # {}
-user.to_json(always_emit_implicit=True) # {"firstName": ""}
+user.to_json(always_emit_implicit=True) # {"firstName":""}
 ```
 
 For more information, see [JSON](./serialization.md#json).
@@ -76,7 +76,7 @@ The Protobuf JSON specification requires `lowerCamelCase` field names.
 Pass `use_proto_field_name=True` to use the original `snake_case` names instead:
 
 ```python
-user.to_json(use_proto_field_name=True)   # {"first_name": "Homer"}
+user.to_json(use_proto_field_name=True)   # {"first_name":"Homer"}
 ```
 
 Note: if you rename a field in the `.proto` file, JSON consumers will break because JSON uses names, not field numbers.

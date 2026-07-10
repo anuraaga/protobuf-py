@@ -303,8 +303,8 @@ print(user2)
 
 ```shellsession
 $ uv run python main.py
-57
-{"firstName": "Yogi", "lastName": "Bear", "active": true}
+52
+{"firstName":"Yogi","lastName":"Bear","active":true}
 Yogi
 Bear
 True
@@ -466,7 +466,7 @@ print(user.to_json())
 
 ```shellsession
 $ uv run python main.py
-{"firstName": "Yogi", "lastName": "Bear", "displayName": "Yabba", "status": "STATUS_ACTIVE", "homeAddress": {"location": "123 Main St", "city": "Jellystone", "country": "USA"}, "workAddress": {"location": "456 Park Ave", "city": "Jellystone", "country": "USA"}, "manager": {"firstName": "Ranger", "lastName": "Smith"}, "hobbies": ["picnicking", "fishing"], "externalUsernames": {"twitter": "@yogibear", "github": "yogidev"}, "sessionTimeoutMinutes": 30, "created": "1958-09-29T18:00:00Z"}
+{"firstName":"Yogi","lastName":"Bear","displayName":"Yabba","status":"STATUS_ACTIVE","homeAddress":{"location":"123 Main St","city":"Jellystone","country":"USA"},"workAddress":{"location":"456 Park Ave","city":"Jellystone","country":"USA"},"manager":{"firstName":"Ranger","lastName":"Smith"},"hobbies":["picnicking","fishing"],"externalUsernames":{"twitter":"@yogibear","github":"yogidev"},"sessionTimeoutMinutes":30,"created":"1958-09-29T18:00:00Z"}
 ```
 
 We see typical Python usage for primitives, enums, submessages, lists, and dicts.

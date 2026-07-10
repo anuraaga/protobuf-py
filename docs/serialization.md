@@ -58,7 +58,7 @@ Set this to `True` to always include them:
 ```python
 user = User()   # first_name is "" (zero value)
 user.to_json()  # {} (first_name omitted)
-user.to_json(always_emit_implicit=True)  # {"firstName": ""}
+user.to_json(always_emit_implicit=True)  # {"firstName":""}
 ```
 
 `print_enums_as_ints`: by default, enum values are serialized as string names.
@@ -66,7 +66,7 @@ Set this to `True` to serialize them as integers instead:
 
 ```python
 msg.to_json(print_enums_as_ints=True)
-# {"status": 1} instead of {"status": "ACTIVE"}
+# {"status":1} instead of {"status":"ACTIVE"}
 ```
 
 `use_proto_field_name`: by default, field names are converted to `camelCase` in JSON output.
@@ -74,7 +74,7 @@ Set this to `True` to use the original `snake_case` proto field names instead:
 
 ```python
 user.to_json(use_proto_field_name=True)
-# {"first_name": "Homer"} instead of {"firstName": "Homer"}
+# {"first_name":"Homer"} instead of {"firstName":"Homer"}
 ```
 
 `registry`: required when the message contains a [`google.protobuf.Any`](./well-known-types.md#any) field or extensions.
