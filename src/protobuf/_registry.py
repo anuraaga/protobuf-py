@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from ._enum import Enum
 
 _Types = DescMessage | DescEnum | DescExtension | DescService
+_MessageTypeInfo = DescMessage | str | Message
 _T = TypeVar("_T", bound=_Types)
 
 
@@ -176,8 +177,21 @@ class Registry:
         msg = self._types.get(type_name)
         return msg if isinstance(msg, DescExtension) else None
 
+    def extensions_for(self, type_info: _MessageTypeInfo) -> list[DescExtension]:
+        """Look up all extensions for a given message type.
+
+        Args:
+            type_info: The extended message, either as a
+                DescMessage, its fully qualified name, or a Message instance.
+
+        Returns:
+            A list of extension descriptors for the given message type.
+        """
+        msg_type_name = _resolve_type_name(type_info)
+        return list(self._extendees.get(msg_type_name, {}).values())
+
     def extension_for(
-        self, type_info: DescMessage | str | Message, number: int
+        self, type_info: _MessageTypeInfo, number: int
     ) -> DescExtension | None:
         """Look up an extension by the message it extends and field number.
 
@@ -189,14 +203,7 @@ class Registry:
         Returns:
             The descriptor for the extension, or `None` if not found.
         """
-        match type_info:
-            case DescMessage():
-                msg_type_name = type_info.type_name
-            case Message():
-                msg_type_name = type_info.desc().type_name
-            case str():
-                msg_type_name = type_info
-
+        msg_type_name = _resolve_type_name(type_info)
         return self._extendees[msg_type_name].get(number)
 
     def _get_type(self, type_name: str, typ: type[_T]) -> None | _T:
@@ -220,3 +227,13 @@ class Registry:
         yield from self._types.values()
 
     __slots__ = "_extendees", "_files", "_types"
+
+
+def _resolve_type_name(type_info: _MessageTypeInfo) -> str:
+    match type_info:
+        case DescMessage():
+            return type_info.type_name
+        case Message():
+            return type_info.desc().type_name
+        case str():
+            return type_info

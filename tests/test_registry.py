@@ -32,6 +32,7 @@ def test_empty_registry() -> None:
     assert reg.extension("foo") is None
     assert reg.service("foo") is None
     assert reg.extension_for("foo", 1) is None
+    assert reg.extensions_for("foo") == []
 
 
 @pytest.fixture
@@ -100,6 +101,8 @@ def test_extension_without_message(file: DescFile) -> None:
     assert reg.message("P.M") is None
     assert reg.extension_for("P.M", 100) is file.extensions[0]
     assert reg.extension_for(file.messages[0], 100) is file.extensions[0]
+    assert reg.extensions_for("P.M") == [file.extensions[0]]
+    assert reg.extensions_for(file.messages[0]) == [file.extensions[0]]
 
 
 def test_multiple(protoc: Protoc, file: DescFile) -> None:
@@ -130,6 +133,7 @@ def test_multiple(protoc: Protoc, file: DescFile) -> None:
     assert reg.enum("O.E") is other.enums[0]
     assert reg.extension("O.ext") is other.extensions[0]
     assert reg.extension_for("O.M", 100) is other.extensions[0]
+    assert reg.extensions_for("O.M") == [other.extensions[0]]
 
 
 def test_last_win(protoc: Protoc, file: DescFile) -> None:
@@ -183,3 +187,4 @@ def assert_all(file: DescFile, reg: Registry) -> None:
     assert reg.enum("P.E") is file.enums[0]
     assert reg.extension("P.ext") is file.extensions[0]
     assert reg.extension_for("P.M", 100) is file.extensions[0]
+    assert file.extensions[0] in reg.extensions_for("P.M")
