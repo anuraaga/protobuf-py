@@ -16,7 +16,7 @@ from __future__ import annotations
 import dataclasses
 import sys
 import traceback
-from typing import TYPE_CHECKING, Any, TypeVar, cast, overload
+from typing import IO, TYPE_CHECKING, Any, TypeVar, cast, overload
 
 from protobuf import maximum_supported_edition, minimum_supported_edition
 from protobuf.plugin._file import write
@@ -44,6 +44,9 @@ def run(
     *,
     minimum_edition: int = minimum_supported_edition,
     maximum_edition: int = maximum_supported_edition,
+    args: list[str] | None = None,
+    stdin: IO[bytes] | None = None,
+    stdout: IO[bytes] | None = None,
 ) -> None: ...
 
 
@@ -57,6 +60,9 @@ def run(
     *,
     minimum_edition: int = minimum_supported_edition,
     maximum_edition: int = maximum_supported_edition,
+    args: list[str] | None = None,
+    stdin: IO[bytes] | None = None,
+    stdout: IO[bytes] | None = None,
 ) -> None: ...
 
 
@@ -70,6 +76,9 @@ def run(
     *,
     minimum_edition: int = minimum_supported_edition,
     maximum_edition: int = maximum_supported_edition,
+    args: list[str] | None = None,
+    stdin: IO[bytes] | None = None,
+    stdout: IO[bytes] | None = None,
 ) -> None: ...
 
 
@@ -82,6 +91,9 @@ def run(
     *,
     minimum_edition: int = minimum_supported_edition,
     maximum_edition: int = maximum_supported_edition,
+    args: list[str] | None = None,
+    stdin: IO[bytes] | None = None,
+    stdout: IO[bytes] | None = None,
 ) -> None:
     """Run a protoc plugin.
 
@@ -105,15 +117,27 @@ def run(
             Defaults to the runtime's minimum_supported_edition.
         maximum_edition: Maximum edition supported by this plugin.
             Defaults to the runtime's maximum_supported_edition.
+        args: The command line arguments. Defaults to sys.argv.
+        stdin: The input stream to read the request from. Defaults to sys.stdin.buffer.
+        stdout: The output stream to write the response to. Defaults to sys.stdout.buffer.
     """
+    if args is None:
+        args = sys.argv
+    if stdin is None:
+        stdin = sys.stdin.buffer
+        assert stdin is not None  # noqa: S101
+    if stdout is None:
+        stdout = sys.stdout.buffer
+        assert stdout is not None  # noqa: S101
+
     if generate is None:
         generate = cast("Callable[[Schema[Any]], None]", options_or_generate)
         options: type[DataclassInstance] | Callable[[str], Any] | None = None
     else:
         options = options_or_generate
 
-    if "--version" in sys.argv:
-        sys.stdout.write(f"{name} v{version}\n")
+    if "--version" in args:
+        stdout.write(f"{name} v{version}\n".encode())
         sys.exit(0)
 
     if isinstance(options, type):
@@ -127,7 +151,7 @@ def run(
             )
             raise ValueError(msg)
 
-    req = CodeGeneratorRequest.from_binary(sys.stdin.buffer.read())
+    req = CodeGeneratorRequest.from_binary(stdin.read())
 
     try:
         fw_opts, remaining_parameter = parse_options(_FrameworkOptions, req.parameter)
@@ -163,11 +187,12 @@ def run(
             maximum_edition=maximum_edition,
             file=response_files,
         )
-        sys.stdout.buffer.write(resp.to_binary())
+        stdout.write(resp.to_binary())
 
     except Exception:  # noqa: BLE001
         error_msg = traceback.format_exc()
-        _write_error_response(error_msg)
+        resp = CodeGeneratorResponse(error=error_msg)
+        stdout.write(resp.to_binary())
 
 
 def _parse_plugin_options(
@@ -197,12 +222,6 @@ def _parse_plugin_options(
             raise ValueError(msg)
         return result
     return options(parameter)
-
-
-def _write_error_response(error: str) -> None:
-    """Write an error response to stdout."""
-    resp = CodeGeneratorResponse(error=error)
-    sys.stdout.buffer.write(resp.to_binary())
 
 
 @dataclasses.dataclass
