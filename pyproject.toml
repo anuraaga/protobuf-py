@@ -31,6 +31,7 @@ Issues = "https://github.com/bufbuild/protobuf-py/issues"
 Source = "https://github.com/bufbuild/protobuf-py"
 
 [dependency-groups]
+# We ensure all dependencies are installed by default so IDE works properly for development.
 dev = [
   { include-group = "dev-optional" },
   { include-group = "dev-required" },
