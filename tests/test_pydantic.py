@@ -19,7 +19,7 @@ pytest.importorskip("pydantic", reason="optional dependency not installed")
 
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from protobuf.wkt import Duration, Timestamp
 
@@ -55,6 +55,14 @@ def test_adapter(msg: Message) -> None:
     assert ta.validate_json(msg.to_json().encode()) == msg
 
 
+def test_adapter_invalid() -> None:
+    ta = TypeAdapter(Scalars)
+    with pytest.raises(ValidationError):
+        ta.validate_python({"unknownField": 123})
+    with pytest.raises(ValidationError):
+        assert ta.validate_json(b'{"unknownField": 123}') == Scalars()
+
+
 class Model(BaseModel):
     msg: Scalars
 
@@ -68,3 +76,10 @@ def test_model() -> None:
 
     assert Model.model_validate({"msg": s}) == m
     assert Model.model_validate_json(f'{{"msg":{s.to_json()}}}') == m
+
+
+def test_model_invalid() -> None:
+    with pytest.raises(ValidationError):
+        Model.model_validate({"msg": {"unknownField": 123}})
+    with pytest.raises(ValidationError):
+        Model.model_validate_json('{"msg": {"unknownField": 123}}')
