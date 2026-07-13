@@ -39,7 +39,7 @@ dev = [
 ]
 docs = ["mkdocstrings-python==2.0.5", "zensical==0.0.50"]
 
-# All dependencies required for development, including running baseline tests.
+# All dependencies required for CI, including running baseline tests.
 dev-required = [
   # Prevent local packages from being uninstalled when syncing
   "example",
