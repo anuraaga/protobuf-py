@@ -41,6 +41,9 @@ from ._wire import BinaryReader, BinaryWriter
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from pydantic import GetCoreSchemaHandler
+    from pydantic_core import CoreSchema, core_schema
+
     from ._registry import Registry
 
 Self = TypeVar("Self", bound="Message")
@@ -714,3 +717,29 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
             uf = {}
             object_setattr(self, "_unknown_fields", uf)
         return uf
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls: type[Self], _source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from pydantic_core import core_schema  # noqa: PLC0415
+
+        from ._from_json import message_from_json_value  # noqa: PLC0415
+        from ._to_json import message_to_json_value  # noqa: PLC0415
+
+        def validate(v: Any) -> Self:
+            if isinstance(v, cls):
+                return v
+            return message_from_json_value(cls, v)
+
+        def serialize(v: Any, info: core_schema.SerializationInfo) -> Any:
+            if info.mode == "json":
+                return message_to_json_value(v)
+            return v
+
+        return core_schema.no_info_plain_validator_function(
+            validate,
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                serialize, info_arg=True
+            ),
+        )

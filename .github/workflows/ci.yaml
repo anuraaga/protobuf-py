@@ -51,6 +51,12 @@ jobs:
         env:
           ASSERT_MARSHALER_IMPLEMENTATION: ${{ matrix.native-ext && 'native' || 'python' }}
 
+      # Ensure tests pass without optional dependencies. Issues would come from eager imports, so we go ahead
+      # and run the single conformance test only to keep this step lightweight and give high coverage.
+      - run: |
+          uv sync --no-dev
+          uv run --no-dev --group dev-required pytest -k test_conformance
+
   test-pypy:
     name: ${{ matrix.os }} / ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}-latest
