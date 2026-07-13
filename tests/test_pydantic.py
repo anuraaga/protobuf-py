@@ -65,3 +65,6 @@ def test_model() -> None:
     assert m.msg == s
     assert m.model_dump() == {"msg": s}
     assert m.model_dump_json() == f'{{"msg":{s.to_json()}}}'
+
+    assert Model.model_validate({"msg": s}) == m
+    assert Model.model_validate_json(f'{{"msg":{s.to_json()}}}') == m
