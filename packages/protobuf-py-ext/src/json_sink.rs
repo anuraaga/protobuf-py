@@ -1,10 +1,5 @@
-//! Output abstraction for JSON serialization.
-//!
-//! The generic serialization control flow in `json_serialize` writes into a
-//! `JsonSink`, monomorphized so the string path has zero dynamic-dispatch
-//! overhead. `StringSink` builds a compact UTF-8 JSON string (matching the
-//! pure-Python `json.dumps(..., separators=(",", ":"), ensure_ascii=False)`);
-//! `PyValueSink` (added in a later step) builds a Python tree.
+//! Output abstraction for JSON serialization, to output either to a string or
+//! Python object.
 
 use pyo3::{
     Bound, PyAny, PyResult, Python,
@@ -17,30 +12,30 @@ use pyo3::{
 
 /// A streaming sink for JSON output.
 pub(crate) trait JsonSink {
+    /// Begin a JSON object.
     fn begin_object(&mut self) -> PyResult<()>;
+    /// End a JSON object.
     fn end_object(&mut self) -> PyResult<()>;
+    /// Begin a JSON array.
     fn begin_array(&mut self) -> PyResult<()>;
+    /// End a JSON array.
     fn end_array(&mut self) -> PyResult<()>;
-    /// Writes an object key from a Python string (field/JSON names).
-    fn key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()>;
-    /// Writes an object key from a Rust string (map keys, `@type`, `[ext]`).
-    fn key_str(&mut self, key: &str) -> PyResult<()>;
+    /// Emit a key.
+    fn key(&mut self, key: &str) -> PyResult<()>;
+    /// Emit a key from a Python string.
+    fn py_key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()>;
+    /// Emit a null value.
     fn null(&mut self) -> PyResult<()>;
+    /// Emit a boolean value.
     fn bool(&mut self, value: bool) -> PyResult<()>;
-    /// A bare JSON integer (32-bit ints and enum values that fit).
+    /// Emit a JSON integer value (value must be within 32-bit).
     fn i64(&mut self, value: i64) -> PyResult<()>;
-    /// A bare JSON number taken from a Python `int`/`float` object, formatted
-    /// via its `repr` so the output matches `json.dumps` exactly (finite
-    /// doubles and out-of-`i64` integers).
+    /// Emit a JSON number from a Python object (int or float).
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()>;
-    /// A JSON string built in Rust (RFC 3339, base64, `"NaN"`, quoted 64-bit
-    /// integers, …).
-    fn str_value(&mut self, value: &str) -> PyResult<()>;
-    /// A JSON string from a Python string field; the default re-encodes as a
-    /// Rust string, `PyValueSink` overrides to keep the handle.
-    fn py_str_value(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
-        self.str_value(value.to_str()?)
-    }
+    /// Emit a JSON string value.
+    fn str(&mut self, value: &str) -> PyResult<()>;
+    /// Emit a JSON string value from a Python string.
+    fn py_str(&mut self, value: &Bound<'_, PyString>) -> PyResult<()>;
 }
 
 /// A container frame tracking whether the next element needs a leading comma.
@@ -48,7 +43,7 @@ struct Frame {
     /// Whether this container is an array (values self-separate) vs an object
     /// (keys handle separation).
     array: bool,
-    /// Whether the container is still empty (no comma before the first element).
+    /// Whether the container is still empty.
     empty: bool,
 }
 
@@ -118,11 +113,7 @@ impl JsonSink for StringSink {
         Ok(())
     }
 
-    fn key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()> {
-        self.key_str(key.to_str()?)
-    }
-
-    fn key_str(&mut self, key: &str) -> PyResult<()> {
+    fn key(&mut self, key: &str) -> PyResult<()> {
         if let Some(frame) = self.stack.last_mut() {
             if !frame.empty {
                 self.out.push(',');
@@ -132,6 +123,10 @@ impl JsonSink for StringSink {
         write_escaped(&mut self.out, key);
         self.out.push(':');
         Ok(())
+    }
+
+    fn py_key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()> {
+        self.key(key.to_str()?)
     }
 
     fn null(&mut self) -> PyResult<()> {
@@ -154,10 +149,11 @@ impl JsonSink for StringSink {
     }
 
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        // Fast path: for a finite float in Python's fixed-notation range, ryu's
-        // fixed output is byte-identical to `repr` (and thus `json.dumps`),
-        // avoiding a Python `repr` call. Anything else (scientific notation,
-        // ints, int-valued doubles) falls back to `repr` for exact parity.
+        // Fast paths avoiding a Python `repr` call, both byte-identical to
+        // `json.dumps`: ryu for a finite float in Python's fixed-notation range,
+        // and itoa for an int that fits `i64` (common when an int is assigned to
+        // a float field, or a large open-enum value). Scientific-notation floats
+        // and out-of-`i64` ints fall back to `repr` for exact parity.
         if value.is_instance_of::<PyFloat>() {
             let float_value = value.extract::<f64>()?;
             if let Some(text) = ryu_fixed_notation(float_value) {
@@ -165,6 +161,8 @@ impl JsonSink for StringSink {
                 self.out.push_str(&text);
                 return Ok(());
             }
+        } else if let Ok(int_value) = value.extract::<i64>() {
+            return self.i64(int_value);
         }
         let repr = value.repr()?;
         self.before_value();
@@ -172,10 +170,14 @@ impl JsonSink for StringSink {
         Ok(())
     }
 
-    fn str_value(&mut self, value: &str) -> PyResult<()> {
+    fn str(&mut self, value: &str) -> PyResult<()> {
         self.before_value();
         write_escaped(&mut self.out, value);
         Ok(())
+    }
+
+    fn py_str(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
+        self.str(value.to_str()?)
     }
 }
 
@@ -276,12 +278,15 @@ impl JsonSink for PyValueSink<'_> {
         Ok(())
     }
 
-    fn key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()> {
-        self.set_pending_key(PyString::new(self.py, key.to_str()?))
+    fn key(&mut self, key: &str) -> PyResult<()> {
+        self.set_pending_key(PyString::new(self.py, key))
     }
 
-    fn key_str(&mut self, key: &str) -> PyResult<()> {
-        self.set_pending_key(PyString::new(self.py, key))
+    fn py_key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()> {
+        // Reuse the existing Python string as the dict key (rebind to the sink's
+        // GIL lifetime), avoiding a fresh allocation.
+        let key = key.clone().unbind().into_bound(self.py);
+        self.set_pending_key(key)
     }
 
     fn null(&mut self) -> PyResult<()> {
@@ -305,12 +310,12 @@ impl JsonSink for PyValueSink<'_> {
         self.attach(value)
     }
 
-    fn str_value(&mut self, value: &str) -> PyResult<()> {
+    fn str(&mut self, value: &str) -> PyResult<()> {
         let value = PyString::new(self.py, value).into_any();
         self.attach(value)
     }
 
-    fn py_str_value(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
+    fn py_str(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
         let value = value.clone().unbind().into_bound(self.py).into_any();
         self.attach(value)
     }

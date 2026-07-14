@@ -642,7 +642,7 @@ def _test_roundtrip(
 @pytest.mark.parametrize(
     "value",
     [
-        # Fixed-notation range
+        # Floats in Python's fixed-notation range (ryu fast path).
         0.0,
         -0.0,
         0.3,
@@ -652,6 +652,7 @@ def _test_roundtrip(
         1e15,
         0.0001,
         1234567890.12345,
+        # Floats in scientific-notation range (repr fallback).
         1e16,
         1e-5,
         1e30,
@@ -659,9 +660,14 @@ def _test_roundtrip(
         1.23e300,
         -4.5e-10,
         3.14159e-7,
+        # Ints assigned to a double field (itoa fast path; repr for out-of-i64).
+        5,
+        -3,
+        10**18,
+        10**30,
     ],
 )
-def test_double_json_matches_json_dumps(value: float) -> None:
+def test_double_json_matches_json_dumps(value: float | int) -> None:
     msg = Scalars(double_field=value)
     assert msg.to_json() == json.dumps(
         message_to_json_value(msg), separators=(",", ":"), ensure_ascii=False

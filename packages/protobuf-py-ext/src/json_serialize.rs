@@ -71,12 +71,12 @@ impl MessageMarshaler {
             WktKind::Timestamp { seconds, nanos } => {
                 let sec = self.read_int64_field(py, message, *seconds)?;
                 let nan = self.read_int32_field(py, message, *nanos)?;
-                sink.str_value(&timestamp_to_rfc3339(sec, nan)?)
+                sink.str(&timestamp_to_rfc3339(sec, nan)?)
             }
             WktKind::Duration { seconds, nanos } => {
                 let sec = self.read_int64_field(py, message, *seconds)?;
                 let nan = self.read_int32_field(py, message, *nanos)?;
-                sink.str_value(&duration_to_json(sec, nan)?)
+                sink.str(&duration_to_json(sec, nan)?)
             }
             WktKind::FieldMask { paths } => self.write_field_mask(py, message, *paths, sink),
             WktKind::Wrapper { field, scalar } => {
@@ -129,7 +129,7 @@ impl MessageMarshaler {
             } else {
                 field.json_key.bind(py)
             };
-            sink.key(key)?;
+            sink.py_key(key)?;
             field.serializer.write_json_value(py, &value, sink, opts)?;
         }
         if let Some(registry) = &opts.registry {
@@ -197,7 +197,7 @@ impl MessageMarshaler {
             }
             parts.push(camel);
         }
-        sink.str_value(&parts.join(","))
+        sink.str(&parts.join(","))
     }
 
     fn write_struct<S: JsonSink>(
@@ -218,7 +218,7 @@ impl MessageMarshaler {
         let map = map.cast::<PyDict>()?;
         sink.begin_object()?;
         for (key, value) in map {
-            sink.key(key.cast::<PyString>()?)?;
+            sink.py_key(key.cast::<PyString>()?)?;
             value_serializer.write_single_json_value(py, &value, sink, opts)?;
         }
         sink.end_object()?;
@@ -285,7 +285,7 @@ impl MessageMarshaler {
                 }
                 sink.py_number(value)
             }
-            "string_value" => sink.py_str_value(value.cast::<PyString>()?),
+            "string_value" => sink.py_str(value.cast::<PyString>()?),
             "bool_value" => sink.bool(value.extract::<bool>()?),
             "struct_value" => self.serializer.fields()[*struct_value]
                 .serializer
@@ -345,13 +345,13 @@ impl MessageMarshaler {
         if matches!(inner_marshaler.wkt, WktKind::None) {
             // Regular message: inline its fields, then `@type` last.
             inner_marshaler.write_message_fields(py, &inner_msg, sink, opts)?;
-            sink.key_str("@type")?;
-            sink.str_value(&type_url)?;
+            sink.key("@type")?;
+            sink.str(&type_url)?;
         } else {
             // Well-known type (including FileDescriptorSet): wrap in `value`.
-            sink.key_str("@type")?;
-            sink.str_value(&type_url)?;
-            sink.key_str("value")?;
+            sink.key("@type")?;
+            sink.str(&type_url)?;
+            sink.key("value")?;
             inner_marshaler.write_json(py, &inner_msg, sink, opts)?;
         }
         sink.end_object()?;
@@ -388,7 +388,7 @@ impl MessageMarshaler {
             let field_value = DescFieldValue::new(py, &ext_value_desc, &self.constants)?;
             let type_name = ext_desc.getattr(&self.constants.type_name)?;
             let type_name = type_name.cast::<PyString>()?;
-            sink.key_str(&format!("[{}]", type_name.to_str()?))?;
+            sink.key(&format!("[{}]", type_name.to_str()?))?;
             write_desc_field_value(py, &field_value, &value, sink, opts)?;
         }
         Ok(())
@@ -542,7 +542,7 @@ fn write_enum_json<S: JsonSink>(
             return sink.i64(i64::from(number));
         }
         if let Some(name) = enum_desc.names_by_number.get(&number) {
-            return sink.py_str_value(name.bind(py));
+            return sink.py_str(name.bind(py));
         }
         // Open enum, unknown value: emit the bare integer.
         sink.i64(i64::from(number))
@@ -586,7 +586,7 @@ fn write_scalar_json<S: JsonSink>(
                 .extract::<i64>()
                 .map_err(|_| overflow_value(value, "int64"))?;
             let mut buf = itoa::Buffer::new();
-            sink.str_value(buf.format(v))
+            sink.str(buf.format(v))
         }
         ScalarType::Uint64 | ScalarType::Fixed64 => {
             require_int(value)?;
@@ -594,7 +594,7 @@ fn write_scalar_json<S: JsonSink>(
                 .extract::<u64>()
                 .map_err(|_| overflow_value(value, "uint64"))?;
             let mut buf = itoa::Buffer::new();
-            sink.str_value(buf.format(v))
+            sink.str(buf.format(v))
         }
         ScalarType::Float => {
             let f = require_float(value)?;
@@ -611,11 +611,11 @@ fn write_scalar_json<S: JsonSink>(
             let s = value
                 .cast::<PyString>()
                 .map_err(|_| type_got("expected str", value))?;
-            sink.py_str_value(s)
+            sink.py_str(s)
         }
         ScalarType::Bytes => {
             let bytes = extract_bytes(value)?;
-            sink.str_value(&BASE64_STANDARD.encode(&bytes))
+            sink.str(&BASE64_STANDARD.encode(&bytes))
         }
     }
 }
@@ -625,9 +625,9 @@ fn write_scalar_json<S: JsonSink>(
 /// int-valued doubles).
 fn write_double<S: JsonSink>(value: &Bound<'_, PyAny>, f: f64, sink: &mut S) -> PyResult<()> {
     if f.is_nan() {
-        sink.str_value("NaN")
+        sink.str("NaN")
     } else if f.is_infinite() {
-        sink.str_value(if f > 0.0 { "Infinity" } else { "-Infinity" })
+        sink.str(if f > 0.0 { "Infinity" } else { "-Infinity" })
     } else {
         sink.py_number(value)
     }
@@ -639,13 +639,13 @@ fn write_map_key<S: JsonSink>(
     sink: &mut S,
 ) -> PyResult<()> {
     match key_type {
-        ScalarType::String => sink.key_str(key.cast::<PyString>()?.to_str()?),
-        ScalarType::Bool => sink.key_str(if key.extract::<bool>()? {
+        ScalarType::String => sink.py_key(key.cast::<PyString>()?),
+        ScalarType::Bool => sink.key(if key.extract::<bool>()? {
             "true"
         } else {
             "false"
         }),
-        _ => sink.key_str(key.str()?.to_str()?),
+        _ => sink.key(key.str()?.to_str()?),
     }
 }
 
