@@ -195,11 +195,9 @@ pub(crate) struct FieldParser {
     pub(crate) local_name_py: Py<PyString>,
     local_name: String,
     /// The proto field name (used for JSON oneof error messages).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) name: Py<PyString>,
     /// The oneof name this field belongs to, if any (used for JSON oneof
     /// duplicate-set tracking).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) oneof_name: Option<Py<PyString>>,
     pub(crate) attr: AttributeAccess,
     pub(crate) type_: ParserFieldType,
@@ -670,15 +668,8 @@ impl MessageParser {
     }
 
     /// Looks up the parser for a field by its field number.
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) fn field(&self, field_number: u32) -> Option<&FieldParser> {
         self.inner.fields.get(field_number)
-    }
-
-    /// The Python type this parser targets.
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
-    pub(crate) fn python_type(&self) -> &Py<PyType> {
-        &self.inner.python_type
     }
 
     /// Merges wire data into an existing Python message instance.

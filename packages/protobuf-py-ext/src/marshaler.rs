@@ -27,7 +27,6 @@ use crate::{
 /// name to the field number, resolved lazily so binary-only workloads never
 /// pay for building it.
 pub(crate) struct JsonNames {
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) by_name: HashMap<Box<str>, u32>,
 }
 
@@ -74,7 +73,6 @@ pub(crate) struct MessageMarshalerInner {
 
     /// Well-known-type classification for JSON marshaling (eager; `None` for
     /// ordinary messages).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) wkt: WktKind,
 
     /// Lazily-built JSON key lookup for parsing.
@@ -204,7 +202,6 @@ impl MessageMarshaler {
 
     /// Returns the JSON key lookup for this message type, building it on first
     /// use from the serializer's per-field proto and JSON names.
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) fn json_names(&self, py: Python<'_>) -> PyResult<&JsonNames> {
         self.inner.json_names.get_or_try_init(py, || {
             let mut by_name = HashMap::new();

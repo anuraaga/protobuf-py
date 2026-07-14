@@ -680,6 +680,15 @@ def message_from_json_value(
         )
         ```
     """
+    from ._native_message import NativeMessageClass  # noqa: PLC0415
+
+    if NativeMessageClass is not None and issubclass(message_type, NativeMessageClass):
+        return cast(
+            "T",
+            message_type._from_json_value(
+                data, ignore_unknown_fields=ignore_unknown_fields, registry=registry
+            ),
+        )
     message = message_type()
     opts = FromJsonOptions(
         ignore_unknown_fields=ignore_unknown_fields, registry=registry

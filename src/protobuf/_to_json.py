@@ -245,6 +245,15 @@ def message_to_json_value(
         ```
     """
     validate(message)
+    from ._native_message import NativeMessageClass  # noqa: PLC0415
+
+    if NativeMessageClass is not None and isinstance(message, NativeMessageClass):
+        return message._to_json_value(
+            registry=registry,
+            always_emit_implicit=always_emit_implicit,
+            print_enums_as_ints=print_enums_as_ints,
+            use_proto_field_name=use_proto_field_name,
+        )
     opts = ToJsonOptions(
         always_emit_implicit=always_emit_implicit,
         print_enums_as_ints=print_enums_as_ints,

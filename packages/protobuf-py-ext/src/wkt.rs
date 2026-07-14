@@ -23,7 +23,6 @@ use crate::{
 };
 
 /// Well-known-type classification with pre-resolved field indices.
-#[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
 pub(crate) enum WktKind {
     /// Not a well-known type; use the generic path.
     None,
@@ -32,7 +31,7 @@ pub(crate) enum WktKind {
     /// `google.protobuf.Duration`.
     Duration { seconds: usize, nanos: usize },
     /// `google.protobuf.Any`.
-    Any,
+    Any { type_url: usize, value: usize },
     /// `google.protobuf.FieldMask`.
     FieldMask { paths: usize },
     /// `google.protobuf.Struct`.
@@ -164,7 +163,7 @@ fn detect_any(fields: &[DescField], by_name: &HashMap<String, usize>) -> WktKind
     if is_scalar(&fields[type_url].value, ScalarType::String)
         && is_scalar(&fields[value].value, ScalarType::Bytes)
     {
-        WktKind::Any
+        WktKind::Any { type_url, value }
     } else {
         WktKind::None
     }

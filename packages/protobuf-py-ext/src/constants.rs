@@ -42,6 +42,10 @@ pub(crate) struct ConstantsInner {
     pub(crate) element: Py<PyString>,
     /// The string `enum`.
     pub(crate) enum_: Py<PyString>,
+    /// The string `extension` (Registry method for JSON extension parsing).
+    pub(crate) extension: Py<PyString>,
+    /// The string `extension_for` (Registry method for JSON extension output).
+    pub(crate) extension_for: Py<PyString>,
     /// The string `_ext_marshaler`.
     pub(crate) ext_marshaler: Py<PyString>,
     /// The string `_ext_value_type`.
@@ -116,6 +120,8 @@ impl Constants {
                 desc: PyString::new(py, "_desc").unbind(),
                 element: PyString::new(py, "element").unbind(),
                 enum_: PyString::new(py, "enum").unbind(),
+                extension: PyString::new(py, "extension").unbind(),
+                extension_for: PyString::new(py, "extension_for").unbind(),
                 ext_marshaler: PyString::new(py, "_ext_marshaler").unbind(),
                 ext_value_type: PyString::new(py, "_ext_value_type").unbind(),
                 fields: PyString::new(py, "fields").unbind(),

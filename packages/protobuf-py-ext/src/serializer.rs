@@ -472,10 +472,8 @@ pub(crate) struct SerializerField {
     /// The Python attribute name for the field (used in error messages and oneof lookup).
     pub(crate) py_attr: String,
     /// The proto field name (JSON output key under `use_proto_field_name`).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) name: Py<PyString>,
     /// The JSON name (default JSON output key).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) json_key: Py<PyString>,
     /// The field number.
     pub(crate) number: u32,
@@ -566,7 +564,6 @@ impl MessageSerializer {
 impl MessageSerializer {
     /// The per-field serializers in declaration order (used by JSON output and
     /// to build the JSON name lookup).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) fn fields(&self) -> &[SerializerField] {
         &self.inner.fields
     }

@@ -235,13 +235,10 @@ pub(crate) struct DescEnumInner {
     /// Numeric value -> Python enum object.
     pub(crate) values: HashMap<i32, Py<PyAny>>,
     /// Numeric value -> proto value name (for JSON output).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) names_by_number: HashMap<i32, Py<PyString>>,
     /// Proto value name -> numeric value (for JSON parsing).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) numbers_by_name: HashMap<String, i32>,
     /// Whether this enum is `google.protobuf.NullValue` (JSON null).
-    #[allow(dead_code, reason = "JSON marshaling, wired in follow-up")]
     pub(crate) is_null_value: bool,
     /// Default enum value (first declared value).
     pub(crate) zero_value: Py<PyAny>,
@@ -273,13 +270,12 @@ impl DescEnum {
             let enum_ = ext_desc.extract::<DescEnum>()?;
             return Ok(enum_);
         }
-        let type_name_bound = desc
+        let type_name = desc
             .getattr(&constants.type_name)?
             .cast_into::<PyString>()?;
-        let type_name = type_name_bound.clone().unbind();
         // Mirror `is_null_value_enum`: gate on the fully-qualified name and the
         // descriptor file to avoid matching a user-defined same-named enum.
-        let is_null_value = type_name_bound.to_str()? == "google.protobuf.NullValue"
+        let is_null_value = type_name.to_str()? == "google.protobuf.NullValue"
             && desc
                 .getattr(&constants.file)?
                 .getattr(&constants.name)?
@@ -298,15 +294,14 @@ impl DescEnum {
         let mut first_value = None;
         for enum_value in python_values.iter() {
             let number = enum_value.getattr(&constants.number)?.extract::<i32>()?;
-            let local_name_any = enum_value.getattr(&constants.local_name)?;
-            let local_name = local_name_any.cast::<PyString>()?;
+            let local_name = enum_value
+                .getattr(&constants.local_name)?
+                .cast_into::<PyString>()?;
             let value = py_type.getattr(local_name)?;
             if first_value.is_none() {
                 first_value = Some(value.clone().unbind());
             }
             values.insert(number, value.unbind());
-            // JSON uses the proto value name, which may differ from the
-            // (possibly keyword-mangled) local name used for attribute access.
             let name = enum_value
                 .getattr(&constants.name)?
                 .cast_into::<PyString>()?;
@@ -326,7 +321,7 @@ impl DescEnum {
                     is_null_value,
                     zero_value,
                     py_type: py_type.clone().unbind(),
-                    type_name,
+                    type_name: type_name.unbind(),
                 }),
             },
         )?;

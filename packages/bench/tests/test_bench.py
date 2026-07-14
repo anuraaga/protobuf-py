@@ -181,6 +181,60 @@ class TestBench:
                 benchmark(message.ParseFromString, payload)
 
     @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
+    def test_serialize_json(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: Impl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                message = message_desc.type().from_binary(payload)
+                benchmark(lambda: message.to_json(registry=registry))
+            case "google-python" | "google-upb":
+                from google.protobuf import json_format
+
+                message = _get_google_protobuf_message_instance(typename, impl)
+                message.ParseFromString(payload)
+                benchmark(json_format.MessageToJson, message)
+
+    @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
+    def test_parse_json(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: Impl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                message_class = message_desc.type
+                json_str = message_class().from_binary(payload).to_json(
+                    registry=registry
+                )
+                benchmark(lambda: message_class.from_json(json_str, registry=registry))
+            case "google-python" | "google-upb":
+                from google.protobuf import json_format
+
+                message = _get_google_protobuf_message_instance(typename, impl)
+                message.ParseFromString(payload)
+                json_str = json_format.MessageToJson(message)
+                benchmark(lambda: json_format.Parse(json_str, type(message)()))
+
+    @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
     def test_deepcopy(
         self,
         _id: str,
