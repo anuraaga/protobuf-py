@@ -10,8 +10,8 @@ use pyo3::{
     Bound, PyAny, PyResult, Python,
     exceptions::PyValueError,
     types::{
-        PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyInt, PyList, PyListMethods as _,
-        PyString, PyStringMethods as _,
+        PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyFloat, PyInt, PyList,
+        PyListMethods as _, PyString, PyStringMethods as _,
     },
 };
 
@@ -154,6 +154,18 @@ impl JsonSink for StringSink {
     }
 
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        // Fast path: for a finite float in Python's fixed-notation range, ryu's
+        // fixed output is byte-identical to `repr` (and thus `json.dumps`),
+        // avoiding a Python `repr` call. Anything else (scientific notation,
+        // ints, int-valued doubles) falls back to `repr` for exact parity.
+        if value.is_instance_of::<PyFloat>() {
+            let float_value = value.extract::<f64>()?;
+            if let Some(text) = ryu_fixed_notation(float_value) {
+                self.before_value();
+                self.out.push_str(&text);
+                return Ok(());
+            }
+        }
         let repr = value.repr()?;
         self.before_value();
         self.out.push_str(repr.to_str()?);
@@ -164,6 +176,27 @@ impl JsonSink for StringSink {
         self.before_value();
         write_escaped(&mut self.out, value);
         Ok(())
+    }
+}
+
+/// Returns `ryu`'s formatting of `f` iff it is byte-identical to `CPython`'s
+/// `repr(f)` (and therefore `json.dumps`): `CPython` uses fixed notation for
+/// `0.0` and `1e-4 <= |f| < 1e16` (decimal point in `-3..=16`), and a
+/// fixed-notation shortest representation is canonical. When `ryu` chooses
+/// scientific notation (its threshold differs) or the value is outside the fixed
+/// range, returns `None` so the caller uses `repr` (`CPython` writes
+/// `1e+30`/`1e-05`; `ryu` writes `1e30`/`1e-5`).
+fn ryu_fixed_notation(f: f64) -> Option<String> {
+    let abs = f.abs();
+    if f != 0.0 && !(1e-4..1e16).contains(&abs) {
+        return None;
+    }
+    let mut buffer = ryu::Buffer::new();
+    let formatted = buffer.format_finite(f);
+    if formatted.bytes().any(|byte| byte == b'e' || byte == b'E') {
+        None
+    } else {
+        Some(formatted.to_owned())
     }
 }
 
