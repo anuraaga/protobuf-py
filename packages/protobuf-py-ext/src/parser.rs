@@ -334,7 +334,7 @@ impl FieldParser {
     }
 
     /// Stores a decoded singular value into the message, handling oneof
-    /// wrapping and presence tracking. Shared by binary and JSON parsing.
+    /// wrapping and presence tracking.
     pub(crate) fn assign_singular<'py>(
         &self,
         py: Python<'py>,
@@ -494,8 +494,7 @@ impl FieldParser {
         Ok(())
     }
 
-    /// Stores a decoded map key/value pair into the message's map. Shared by
-    /// binary and JSON parsing.
+    /// Stores a decoded map key/value pair into the message's map.
     pub(crate) fn assign_map_entry<'py>(
         &self,
         py: Python<'py>,

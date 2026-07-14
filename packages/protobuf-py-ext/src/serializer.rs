@@ -562,8 +562,7 @@ impl MessageSerializer {
 }
 
 impl MessageSerializer {
-    /// The per-field serializers in declaration order (used by JSON output and
-    /// to build the JSON name lookup).
+    /// The per-field serializers in declaration order.
     pub(crate) fn fields(&self) -> &[SerializerField] {
         &self.inner.fields
     }
@@ -610,8 +609,7 @@ impl MessageSerializer {
     /// Gets a field value if it should be serialized for this message.
     ///
     /// When `emit_implicit_zero` is true, implicit-presence fields are returned
-    /// even at their zero value (JSON `always_emit_implicit`); binary passes
-    /// false so the zero value is omitted as before.
+    /// even at their zero value, used with JSON `always_emit_implicit`).
     pub(crate) fn get_field_value<'py>(
         message: &Bound<'py, NativeMessage>,
         field: &SerializerField,

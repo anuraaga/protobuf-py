@@ -139,11 +139,7 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         if !all_keys.insert(raw_key.clone()) {
             return Err(PyValueError::new_err(format!("duplicate key: {raw_key}")));
         }
-        let field_number = marshaler
-            .json_names(py)?
-            .by_name
-            .get(raw_key.as_str())
-            .copied();
+        let field_number = marshaler.json_names.get(raw_key.as_str()).copied();
         if let Some(number) = field_number {
             let parser = marshaler
                 .parser

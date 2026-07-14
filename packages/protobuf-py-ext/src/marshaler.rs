@@ -5,7 +5,6 @@ use pyo3::{
     Bound, Py, PyAny, PyResult, Python,
     exceptions::PyKeyError,
     pyclass,
-    sync::PyOnceLock,
     types::{
         PyAnyMethods as _, PyBytes, PyDict, PyDictMethods as _, PyList, PyStringMethods as _,
         PyType,
@@ -22,13 +21,6 @@ use crate::{
     serializer::{MessageSerializer, ToBinaryOpts},
     wkt::WktKind,
 };
-
-/// JSON key lookup for parsing: maps both the proto field name and the JSON
-/// name to the field number, resolved lazily so binary-only workloads never
-/// pay for building it.
-pub(crate) struct JsonNames {
-    pub(crate) by_name: HashMap<Box<str>, u32>,
-}
 
 #[pyclass(frozen)]
 pub(crate) struct Member {
@@ -75,8 +67,9 @@ pub(crate) struct MessageMarshalerInner {
     /// ordinary messages).
     pub(crate) wkt: WktKind,
 
-    /// Lazily-built JSON key lookup for parsing.
-    json_names: PyOnceLock<JsonNames>,
+    /// JSON key lookup for parsing: maps both the proto field name and the JSON
+    /// name to the field number.
+    pub(crate) json_names: HashMap<Box<str>, u32>,
 
     /// The default values for each member.
     defaults: MessageDefaults,
@@ -114,6 +107,13 @@ impl MessageMarshaler {
         let parser = MessageParser::new(py, &fields, python_type, constants);
         let serializer = MessageSerializer::new(py, message_desc, python_type, &fields, constants)?;
         let wkt = WktKind::detect(py, message_desc, &fields, constants)?;
+        // Map both the proto name and JSON name of every field to its number
+        // for parse-side key lookup. Cheap, pure-Rust, O(fields).
+        let mut json_names = HashMap::with_capacity(fields.len() * 2);
+        for field in &fields {
+            json_names.insert(field.name.bind(py).to_str()?.into(), field.number);
+            json_names.insert(field.json_name.bind(py).to_str()?.into(), field.number);
+        }
         let max_field_number = fields.iter().map(|f| f.number).max().unwrap_or(0);
         let members_by_name = PyDict::new(py);
         for field in &fields {
@@ -193,23 +193,10 @@ impl MessageMarshaler {
                 max_field_number,
                 python_type: python_type.clone().unbind(),
                 wkt,
-                json_names: PyOnceLock::new(),
+                json_names,
                 defaults,
                 constants: constants.clone(),
             }),
-        })
-    }
-
-    /// Returns the JSON key lookup for this message type, building it on first
-    /// use from the serializer's per-field proto and JSON names.
-    pub(crate) fn json_names(&self, py: Python<'_>) -> PyResult<&JsonNames> {
-        self.inner.json_names.get_or_try_init(py, || {
-            let mut by_name = HashMap::new();
-            for field in self.inner.serializer.fields() {
-                by_name.insert(field.name.bind(py).to_str()?.into(), field.number);
-                by_name.insert(field.json_key.bind(py).to_str()?.into(), field.number);
-            }
-            Ok(JsonNames { by_name })
         })
     }
 

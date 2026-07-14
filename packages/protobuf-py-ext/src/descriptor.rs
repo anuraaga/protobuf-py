@@ -234,18 +234,20 @@ pub(crate) struct DescEnumInner {
     pub(crate) open: bool,
     /// Numeric value -> Python enum object.
     pub(crate) values: HashMap<i32, Py<PyAny>>,
-    /// Numeric value -> proto value name (for JSON output).
-    pub(crate) names_by_number: HashMap<i32, Py<PyString>>,
-    /// Proto value name -> numeric value (for JSON parsing).
-    pub(crate) numbers_by_name: HashMap<String, i32>,
-    /// Whether this enum is `google.protobuf.NullValue` (JSON null).
-    pub(crate) is_null_value: bool,
     /// Default enum value (first declared value).
     pub(crate) zero_value: Py<PyAny>,
     /// Python enum class object.
     pub(crate) py_type: Py<PyAny>,
     /// Fully-qualified enum type name.
     pub(crate) type_name: Py<PyString>,
+
+    // Used for JSON.
+    /// Numeric value -> proto value name.
+    pub(crate) names_by_number: HashMap<i32, Py<PyString>>,
+    /// Proto value name -> numeric value.
+    pub(crate) numbers_by_name: HashMap<String, i32>,
+    /// Whether this enum is `google.protobuf.NullValue`.
+    pub(crate) is_null_value: bool,
 }
 
 #[pyclass(from_py_object, frozen)]
@@ -273,14 +275,11 @@ impl DescEnum {
         let type_name = desc
             .getattr(&constants.type_name)?
             .cast_into::<PyString>()?;
-        // Mirror `is_null_value_enum`: gate on the fully-qualified name and the
-        // descriptor file to avoid matching a user-defined same-named enum.
         let is_null_value = type_name.to_str()? == "google.protobuf.NullValue"
             && desc
                 .getattr(&constants.file)?
                 .getattr(&constants.name)?
-                .cast::<PyString>()?
-                .to_str()?
+                .extract::<&str>()?
                 .starts_with("google/protobuf/");
         let open = desc.getattr(&constants.open)?.extract::<bool>()?;
         let python_values_any = desc.getattr(&constants.values)?;
@@ -426,10 +425,7 @@ pub(crate) enum DescFieldValue {
 }
 
 impl DescFieldValue {
-    /// Builds a normalized field value model from a Python `DescFieldValue*`.
-    ///
-    /// Extensions reuse this to model their value (which is a `DescFieldValue*`
-    /// just like a regular field), so it stays independent of `DescField`.
+    /// Builds a normalized field value model from a Python `DescFieldValue`.
     pub(crate) fn new(
         py: Python<'_>,
         desc_value: &Bound<'_, PyAny>,
@@ -568,9 +564,7 @@ impl DescField {
             return Err(PyValueError::new_err("invalid field descriptor"));
         }
 
-        let py_number_any = field.getattr(&constants.number)?;
-        let py_number = py_number_any.cast::<PyInt>()?;
-        let number = py_number.extract::<u32>()?;
+        let number = field.getattr(&constants.number)?.extract::<u32>()?;
         let local_name = field
             .getattr(&constants.local_name)?
             .cast::<PyString>()?

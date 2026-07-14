@@ -42,9 +42,9 @@ pub(crate) struct ConstantsInner {
     pub(crate) element: Py<PyString>,
     /// The string `enum`.
     pub(crate) enum_: Py<PyString>,
-    /// The string `extension` (Registry method for JSON extension parsing).
+    /// The string `extension`.
     pub(crate) extension: Py<PyString>,
-    /// The string `extension_for` (Registry method for JSON extension output).
+    /// The string `extension_for`.
     pub(crate) extension_for: Py<PyString>,
     /// The string `_ext_marshaler`.
     pub(crate) ext_marshaler: Py<PyString>,
