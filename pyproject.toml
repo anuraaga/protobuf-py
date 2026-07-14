@@ -161,10 +161,6 @@ cwd = "examples/plugin"
 # Use uv run to ensure package is built before running
 cmd = "uv run pytest"
 
-[tool.poe.tasks.test-conformance]
-help = "Run conformance tests"
-cmd = "conformance_test_runner --failure_list tests/conformance/failing_tests.txt --output_dir tests/conformance --enforce_recommended tests/conformance/run-conformance.sh"
-
 ## Format
 [tool.poe.tasks.format]
 help = "Format source code, sort imports, add license headers (does not format protos, see format-test-protos)"
