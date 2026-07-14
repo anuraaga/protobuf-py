@@ -21,8 +21,9 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
-from protobuf.wkt import Duration, Timestamp
+from protobuf.wkt import Duration, FileDescriptorSet, Timestamp
 
+from .gen.messages_pb import MixedFields
 from .gen.scalars_pb import Scalars
 from .gen.wkt_pb import WellKnownTypes
 
@@ -83,3 +84,38 @@ def test_model_invalid() -> None:
         Model.model_validate({"msg": {"unknownField": 123}})
     with pytest.raises(ValidationError):
         Model.model_validate_json('{"msg": {"unknownField": 123}}')
+
+
+def test_json_schema_nested_refs() -> None:
+    schema = TypeAdapter(MixedFields).json_schema()
+    assert schema["properties"]["messageField"]["$ref"] == "#/$defs/Bar"
+    assert schema["properties"]["explicitEnumField"]["$ref"] == "#/$defs/E"
+    enum_def = schema["$defs"]["E"]
+    assert enum_def["type"] == "string"
+    assert enum_def["enum"] == ["E_UNSPECIFIED", "ONE", "TWO"]
+
+
+def test_json_schema_field_titles() -> None:
+    props = TypeAdapter(MixedFields).json_schema()["properties"]
+    assert props["explicitField"]["title"] == "explicit_field"
+    assert props["repeatedField"]["title"] == "repeated_field"
+    assert props["mapField"]["title"] == "map_field"
+    assert "title" not in props["messageField"]
+    assert "title" not in props["explicitEnumField"]
+
+
+def test_json_schema_recursive() -> None:
+    defs = TypeAdapter(FileDescriptorSet).json_schema()["$defs"]
+    nested_type = defs["DescriptorProto"]["properties"]["nestedType"]
+    assert nested_type["items"]["$ref"] == "#/$defs/DescriptorProto"
+
+
+def test_json_schema_string_encoded_scalars() -> None:
+    props = TypeAdapter(Scalars).json_schema()["properties"]
+    assert props["int64Field"]["type"] == "string"
+    assert props["int64Field"]["pattern"] == "^-?[0-9]+$"
+    assert props["int64Field"]["examples"] == ["0"]
+    assert props["uint64Field"]["pattern"] == "^[0-9]+$"
+    assert props["bytesField"]["contentEncoding"] == "base64"
+    assert props["int32Field"]["type"] == "integer"
+    assert "pattern" not in props["int32Field"]
