@@ -238,7 +238,7 @@ def build_pydantic_core_schema(
     def validate(value: Any, _handler: Any) -> Any:
         if isinstance(value, cls):
             return value
-        return message_from_json_value(cls, value)
+        return message_from_json_value(cls, value, ignore_unknown_fields=True)
 
     def serialize(value: Any, info: Any) -> Any:
         if info.mode == "json":

@@ -59,9 +59,9 @@ def test_adapter(msg: Message) -> None:
 def test_adapter_invalid() -> None:
     ta = TypeAdapter(Scalars)
     with pytest.raises(ValidationError):
-        ta.validate_python({"unknownField": 123})
+        ta.validate_python({"uint32Field": "bear"})
     with pytest.raises(ValidationError):
-        assert ta.validate_json(b'{"unknownField": 123}') == Scalars()
+        assert ta.validate_json(b'{"uint32Field": "bear"}') == Scalars()
 
 
 class Model(BaseModel):
@@ -81,9 +81,9 @@ def test_model() -> None:
 
 def test_model_invalid() -> None:
     with pytest.raises(ValidationError):
-        Model.model_validate({"msg": {"unknownField": 123}})
+        Model.model_validate({"msg": {"uint32Field": "bear"}})
     with pytest.raises(ValidationError):
-        Model.model_validate_json('{"msg": {"unknownField": 123}}')
+        Model.model_validate_json('{"msg": {"uint32Field": "bear"}}')
 
 
 def test_json_schema_nested_refs() -> None:
