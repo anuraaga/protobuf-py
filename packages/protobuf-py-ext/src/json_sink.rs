@@ -151,8 +151,7 @@ impl JsonSink for StringSink {
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
         // Fast paths avoiding a Python `repr` call, both byte-identical to
         // `json.dumps`: ryu for a finite float in Python's fixed-notation range,
-        // and itoa for an int that fits `i64` (common when an int is assigned to
-        // a float field, or a large open-enum value). Scientific-notation floats
+        // and itoa for an int that fits `i64`. Scientific-notation floats
         // and out-of-`i64` ints fall back to `repr` for exact parity.
         if value.is_instance_of::<PyFloat>() {
             let float_value = value.extract::<f64>()?;
@@ -181,13 +180,11 @@ impl JsonSink for StringSink {
     }
 }
 
-/// Returns `ryu`'s formatting of `f` iff it is byte-identical to `CPython`'s
-/// `repr(f)` (and therefore `json.dumps`): `CPython` uses fixed notation for
-/// `0.0` and `1e-4 <= |f| < 1e16` (decimal point in `-3..=16`), and a
+/// Returns `ryu`'s formatting of `f` only if it is byte-identical to `CPython`'s
+/// `repr(f)`. `CPython` uses fixed notation for `0.0` and `1e-4 <= |f| < 1e16`, and a
 /// fixed-notation shortest representation is canonical. When `ryu` chooses
 /// scientific notation (its threshold differs) or the value is outside the fixed
-/// range, returns `None` so the caller uses `repr` (`CPython` writes
-/// `1e+30`/`1e-05`; `ryu` writes `1e30`/`1e-5`).
+/// range, returns `None`.
 fn ryu_fixed_notation(f: f64) -> Option<String> {
     let abs = f.abs();
     if f != 0.0 && !(1e-4..1e16).contains(&abs) {
@@ -235,7 +232,7 @@ impl<'py> PyValueSink<'py> {
     }
 
     /// Attaches a produced value to the enclosing container (or the root).
-    fn attach(&mut self, value: Bound<'py, PyAny>) -> PyResult<()> {
+    fn attach(&mut self, value: &Bound<'py, PyAny>) -> PyResult<()> {
         match self.stack.last_mut() {
             Some(ValueFrame::Object { dict, pending_key }) => {
                 let key = pending_key
@@ -244,7 +241,7 @@ impl<'py> PyValueSink<'py> {
                 dict.set_item(key, value)?;
             }
             Some(ValueFrame::Array { list }) => list.append(value)?,
-            None => self.root = Some(value),
+            None => self.root = Some(value.clone()),
         }
         Ok(())
     }
@@ -253,7 +250,7 @@ impl<'py> PyValueSink<'py> {
 impl JsonSink for PyValueSink<'_> {
     fn begin_object(&mut self) -> PyResult<()> {
         let dict = PyDict::new(self.py);
-        self.attach(dict.clone().into_any())?;
+        self.attach(dict.as_any())?;
         self.stack.push(ValueFrame::Object {
             dict,
             pending_key: None,
@@ -268,7 +265,7 @@ impl JsonSink for PyValueSink<'_> {
 
     fn begin_array(&mut self) -> PyResult<()> {
         let list = PyList::empty(self.py);
-        self.attach(list.clone().into_any())?;
+        self.attach(list.as_any())?;
         self.stack.push(ValueFrame::Array { list });
         Ok(())
     }
@@ -290,34 +287,34 @@ impl JsonSink for PyValueSink<'_> {
     }
 
     fn null(&mut self) -> PyResult<()> {
-        let value = self.py.None().into_bound(self.py);
-        self.attach(value)
+        self.attach(self.py.None().bind(self.py))
     }
 
     fn bool(&mut self, value: bool) -> PyResult<()> {
-        let value = PyBool::new(self.py, value).to_owned().into_any();
-        self.attach(value)
+        let value = PyBool::new(self.py, value);
+        self.attach(&value)
     }
 
     fn i64(&mut self, value: i64) -> PyResult<()> {
-        let value = PyInt::new(self.py, value).into_any();
-        self.attach(value)
+        let value = PyInt::new(self.py, value);
+        self.attach(&value)
     }
 
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
         // Rebind to the sink's GIL lifetime (same object, longer-lived token).
         let value = value.clone().unbind().into_bound(self.py);
-        self.attach(value)
+        self.attach(&value)
     }
 
     fn str(&mut self, value: &str) -> PyResult<()> {
-        let value = PyString::new(self.py, value).into_any();
-        self.attach(value)
+        let value = PyString::new(self.py, value);
+        self.attach(&value)
     }
 
     fn py_str(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
-        let value = value.clone().unbind().into_bound(self.py).into_any();
-        self.attach(value)
+        // Rebind to the sink's GIL lifetime (same object, longer-lived token).
+        let value = value.clone().unbind().into_bound(self.py);
+        self.attach(&value)
     }
 }
 

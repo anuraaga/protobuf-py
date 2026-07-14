@@ -1,8 +1,4 @@
-//! Native `ProtoJSON` serialization, generic over a `JsonSink`.
-//!
-//! Mirrors the pure-Python `protobuf._to_json`. Validation is inline and native
-//! (no Python `validate()` call); error text matches `protobuf._validate`
-//! exactly (which differs from the binary serializer's inline text).
+//! `ProtoJSON` serialization.
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use bytes::Bytes;
@@ -22,6 +18,7 @@ use crate::{
     json_sink::{JsonSink, StringSink},
     marshaler::MessageMarshaler,
     nativemessage::NativeMessage,
+    oneof::Oneof,
     serializer::{FieldSerializer, FieldSerializerType, FieldSerializerValue, MessageSerializer},
     wkt::WktKind,
     wkt_json::{duration_to_json, proto_camel_case, proto_snake_case, timestamp_to_rfc3339},
@@ -87,7 +84,20 @@ impl MessageMarshaler {
             WktKind::ListValue { values } => {
                 self.write_list_value(py, message, *values, sink, opts)
             }
-            WktKind::Value { .. } => self.write_value(py, message, sink, opts),
+            WktKind::Value {
+                null_value,
+                struct_value,
+                list_value,
+                ..
+            } => self.write_value(
+                py,
+                message,
+                *null_value,
+                *struct_value,
+                *list_value,
+                sink,
+                opts,
+            ),
             WktKind::Any { type_url, value } => {
                 self.write_any(py, message, *type_url, *value, sink, opts)
             }
@@ -139,7 +149,9 @@ impl MessageMarshaler {
         Ok(())
     }
 
-    /// Reads the value of a declaration-order field by index.
+    // WKT serialization
+
+    /// Reads the value of a field by index.
     fn field_attr_value<'py>(
         &self,
         py: Python<'py>,
@@ -183,21 +195,26 @@ impl MessageMarshaler {
         paths_idx: usize,
         sink: &mut S,
     ) -> PyResult<()> {
-        let paths = self.field_attr_value(py, message, paths_idx)?;
-        let paths = paths.cast::<PyList>()?;
-        let mut parts: Vec<String> = Vec::with_capacity(paths.len());
+        let paths = self
+            .field_attr_value(py, message, paths_idx)?
+            .cast_into::<PyList>()?;
+        if paths.is_empty() {
+            return sink.str("");
+        }
+        let mut out = String::new();
         for path in paths.iter() {
-            let path = path.cast::<PyString>()?;
-            let path = path.to_str()?;
+            let path = path.extract::<&str>()?;
             let camel = proto_camel_case(path);
             if proto_snake_case(&camel) != path {
                 return Err(PyValueError::new_err(format!(
                     "invalid FieldMask path: lowerCamelCase of {path} is irreversible"
                 )));
             }
-            parts.push(camel);
+            out.push_str(&camel);
+            out.push(',');
         }
-        sink.str(&parts.join(","))
+        // Drop trailing comma.
+        sink.str(&out[..out.len() - 1])
     }
 
     fn write_struct<S: JsonSink>(
@@ -214,8 +231,9 @@ impl MessageMarshaler {
         else {
             return Err(PyValueError::new_err("expected map for Struct.fields"));
         };
-        let map = self.field_attr_value(py, message, fields_idx)?;
-        let map = map.cast::<PyDict>()?;
+        let map = self
+            .field_attr_value(py, message, fields_idx)?
+            .cast_into::<PyDict>()?;
         sink.begin_object()?;
         for (key, value) in map {
             sink.py_key(key.cast::<PyString>()?)?;
@@ -234,8 +252,9 @@ impl MessageMarshaler {
         opts: &JsonOpts,
     ) -> PyResult<()> {
         let element = &self.serializer.fields()[values_idx].serializer;
-        let values = self.field_attr_value(py, message, values_idx)?;
-        let values = values.cast::<PyList>()?;
+        let values = self
+            .field_attr_value(py, message, values_idx)?
+            .cast_into::<PyList>()?;
         sink.begin_array()?;
         for item in values.iter() {
             element.write_single_json_value(py, &item, sink, opts)?;
@@ -248,27 +267,18 @@ impl MessageMarshaler {
         &self,
         py: Python<'_>,
         message: &Bound<'_, NativeMessage>,
+        null_value_idx: usize,
+        struct_value_idx: usize,
+        list_value_idx: usize,
         sink: &mut S,
         opts: &JsonOpts,
     ) -> PyResult<()> {
-        let WktKind::Value {
-            null_value,
-            struct_value,
-            list_value,
-            ..
-        } = &self.wkt
-        else {
-            return Err(PyValueError::new_err(
-                "value must have exactly one field set",
-            ));
-        };
         // All Value fields share the `kind` oneof accessor.
-        let oneof_access = self.serializer.fields()[*null_value]
+        let oneof_access = self.serializer.fields()[null_value_idx]
             .oneof
             .as_ref()
             .ok_or_else(|| PyValueError::new_err("value must have exactly one field set"))?;
-        let oneof_any = oneof_access.get(py, message.as_any())?;
-        let Ok(oneof) = oneof_any.cast::<crate::oneof::Oneof>() else {
+        let Ok(oneof) = oneof_access.get(py, message.as_any())?.cast_into::<Oneof>() else {
             return Err(PyValueError::new_err(
                 "value must have exactly one field set",
             ));
@@ -287,10 +297,10 @@ impl MessageMarshaler {
             }
             "string_value" => sink.py_str(value.cast::<PyString>()?),
             "bool_value" => sink.bool(value.extract::<bool>()?),
-            "struct_value" => self.serializer.fields()[*struct_value]
+            "struct_value" => self.serializer.fields()[struct_value_idx]
                 .serializer
                 .write_single_json_value(py, value, sink, opts),
-            "list_value" => self.serializer.fields()[*list_value]
+            "list_value" => self.serializer.fields()[list_value_idx]
                 .serializer
                 .write_single_json_value(py, value, sink, opts),
             _ => Err(PyValueError::new_err(
@@ -309,8 +319,8 @@ impl MessageMarshaler {
         sink: &mut S,
         opts: &JsonOpts,
     ) -> PyResult<()> {
-        let type_url_obj = self.field_attr_value(py, message, type_url_idx)?;
-        let type_url = type_url_obj.cast::<PyString>()?.to_str()?.to_owned();
+        let type_url_py = self.field_attr_value(py, message, type_url_idx)?;
+        let type_url = type_url_py.extract::<&str>()?;
         if type_url.is_empty() {
             sink.begin_object()?;
             sink.end_object()?;
@@ -346,11 +356,11 @@ impl MessageMarshaler {
             // Regular message: inline its fields, then `@type` last.
             inner_marshaler.write_message_fields(py, &inner_msg, sink, opts)?;
             sink.key("@type")?;
-            sink.str(&type_url)?;
+            sink.str(type_url)?;
         } else {
             // Well-known type (including FileDescriptorSet): wrap in `value`.
             sink.key("@type")?;
-            sink.str(&type_url)?;
+            sink.str(type_url)?;
             sink.key("value")?;
             inner_marshaler.write_json(py, &inner_msg, sink, opts)?;
         }
