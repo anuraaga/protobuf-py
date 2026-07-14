@@ -595,11 +595,9 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
             ValueError: If a google.protobuf.Any or an extension cannot be resolved
                 through the registry.
         """
-        from ._from_json import merge_from_json  # noqa: PLC0415
-
         msg = cls()
-        merge_from_json(
-            msg, json, ignore_unknown_fields=ignore_unknown_fields, registry=registry
+        msg._merge_from_json(
+            json, ignore_unknown_fields=ignore_unknown_fields, registry=registry
         )
         return msg
 
@@ -668,6 +666,28 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         read_message(
             self, BinaryReader(memoryview(data)), opts, depth=0, length=len(data)
         )
+
+    def _merge_from_json(
+        self,
+        json: str | bytes | bytearray,
+        *,
+        ignore_unknown_fields: bool = False,
+        registry: Registry | None = None,
+    ) -> None:
+        from json import loads as parse_json  # noqa: PLC0415
+
+        # Needs to be lazy import since JSON specially handles many WKTs.
+        from ._from_json import (  # noqa: PLC0415
+            FromJsonOptions,
+            _no_duplicates,
+            _read_message,
+        )
+
+        json_value = parse_json(json, object_pairs_hook=_no_duplicates)
+        opts = FromJsonOptions(
+            ignore_unknown_fields=ignore_unknown_fields, registry=registry
+        )
+        _read_message(self, json_value, opts)
 
     def _merge_from(self: Self, source: Self, ignore_unknown_fields: bool) -> None:  # noqa: FBT001
         for field in source:
