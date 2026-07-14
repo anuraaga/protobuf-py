@@ -722,10 +722,6 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
     def __get_pydantic_core_schema__(
         cls: type[Self], _source_type: Any, handler: GetCoreSchemaHandler
     ) -> CoreSchema:
-        # The core schema carries both validation/serialization (delegated to
-        # our own JSON functions) and the JSON schema, generated as pydantic
-        # "$defs" so nested and recursive messages are referenced and
-        # deduplicated. See build_pydantic_core_schema for details.
         from ._jsonschema import build_pydantic_core_schema  # noqa: PLC0415
 
         return build_pydantic_core_schema(cls, handler)
