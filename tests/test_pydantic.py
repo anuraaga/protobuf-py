@@ -110,6 +110,14 @@ def test_json_schema_recursive() -> None:
     assert nested_type["items"]["$ref"] == "#/$defs/DescriptorProto"
 
 
+def test_json_schema_forbids_additional_properties() -> None:
+    schema = TypeAdapter(MixedFields).json_schema()
+    assert schema["additionalProperties"] is False
+    assert schema["$defs"]["Bar"]["additionalProperties"] is False
+    # A map's additionalProperties carries its value schema, not a boolean.
+    assert schema["properties"]["mapField"]["additionalProperties"]["type"] == "integer"
+
+
 def test_json_schema_string_encoded_scalars() -> None:
     props = TypeAdapter(Scalars).json_schema()["properties"]
     assert props["int64Field"]["type"] == "string"

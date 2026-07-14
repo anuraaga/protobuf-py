@@ -334,7 +334,8 @@ def build_pydantic_core_schema(
         }
     finally:
         _BUILDING_TYPES.reset(token)
-    inner = core_schema.typed_dict_schema(fields, extra_behavior="allow", total=False)
+    # We present the schema without additional properties so docs reflect the current schema.
+    inner = core_schema.typed_dict_schema(fields, extra_behavior="forbid", total=False)
     return core_schema.no_info_wrap_validator_function(
         validate, inner, ref=desc.type_name, serialization=serialization
     )
