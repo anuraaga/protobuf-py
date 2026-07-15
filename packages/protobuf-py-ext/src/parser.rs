@@ -194,10 +194,9 @@ pub(crate) struct FieldParser {
     pub(crate) number: u32,
     pub(crate) local_name_py: Py<PyString>,
     local_name: String,
-    /// The proto field name (used for JSON oneof error messages).
+    /// The proto field name.
     pub(crate) name: Py<PyString>,
-    /// The oneof name this field belongs to, if any (used for JSON oneof
-    /// duplicate-set tracking).
+    /// The oneof name this field belongs to, if any.
     pub(crate) oneof_name: Option<Py<PyString>>,
     pub(crate) attr: AttributeAccess,
     pub(crate) type_: ParserFieldType,

@@ -628,9 +628,7 @@ def _test_roundtrip(
     )
     assert json_value == expected
 
-    # to_json() must be byte-identical to json.dumps of the tree form. This is
-    # the only assertion that pins the string sink against the value sink /
-    # json.dumps (e.g. float formatting: ryu-fixed vs repr vs scientific).
+    # Ensure to_json() must be byte-identical to json.dumps of the tree form.
     assert json_str == json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
 
     decoded = message_from_json_value(type(message), json_value, registry=registry)
@@ -642,7 +640,7 @@ def _test_roundtrip(
 @pytest.mark.parametrize(
     "value",
     [
-        # Floats in Python's fixed-notation range (ryu fast path).
+        # Floats in Python's fixed-notation range
         0.0,
         -0.0,
         0.3,
@@ -652,7 +650,7 @@ def _test_roundtrip(
         1e15,
         0.0001,
         1234567890.12345,
-        # Floats in scientific-notation range (repr fallback).
+        # Floats in scientific-notation range
         1e16,
         1e-5,
         1e30,
@@ -660,14 +658,14 @@ def _test_roundtrip(
         1.23e300,
         -4.5e-10,
         3.14159e-7,
-        # Ints assigned to a double field (itoa fast path; repr for out-of-i64).
+        # Ints assigned to a double field
         5,
         -3,
         10**18,
         10**30,
     ],
 )
-def test_double_json_matches_json_dumps(value: float | int) -> None:
+def test_double_json_matches_json_dumps(value: float) -> None:
     msg = Scalars(double_field=value)
     assert msg.to_json() == json.dumps(
         message_to_json_value(msg), separators=(",", ":"), ensure_ascii=False

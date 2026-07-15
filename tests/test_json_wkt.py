@@ -305,9 +305,7 @@ def test_list_value(message: Message, expected: Any) -> None:
             {"@type": "type.googleapis.com/google.protobuf.BoolValue", "value": True},
             id="BoolValue",
         ),
-        # FileDescriptorSet is matched as a WKT only to attach its mixin; it has
-        # no custom JSON representation, so inside Any it is inlined like any
-        # other message (fields alongside "@type"), not wrapped in "value".
+        # FileDescriptorSet does not have a custom representation
         pytest.param(
             FileDescriptorSet(file=[FileDescriptorProto(name="test.proto")]),
             {
@@ -371,8 +369,6 @@ def test_duration_from_json_error(json_str: str, error_type: type[Exception]) ->
 @pytest.mark.parametrize(
     ("json_str", "expected"),
     [
-        # An empty fractional part is accepted by the reference protobuf JSON
-        # parser (google.protobuf 7.35.1 parses "5.s" as seconds=5, nanos=0).
         ('"5.s"', Duration(seconds=5)),
         ('"-5.s"', Duration(seconds=-5)),
         ('"5.5s"', Duration(seconds=5, nanos=500_000_000)),

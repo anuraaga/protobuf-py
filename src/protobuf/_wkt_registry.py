@@ -60,8 +60,7 @@ _TIMESTAMP_RE = re.compile(
     r"(Z|(?:[+-][0-9]{2}:[0-9]{2}))$"
 )
 
-# The fractional part may be empty (`"5.s"`) — the reference protobuf JSON
-# parser accepts a trailing dot with no digits, so `{0,9}` not `{1,9}`.
+# The fractional part may be empty (`"5.s"`).
 _DURATION_RE = re.compile(r"^(-?[0-9]+)(?:\.([0-9]{0,9}))?s$")
 
 

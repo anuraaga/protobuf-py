@@ -6,7 +6,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::Arc,
+    rc::Rc,
 };
 
 use base64::Engine as _;
@@ -112,12 +112,12 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         )));
     }
 
-    let mut all_keys: HashSet<Arc<String>> = HashSet::new();
-    let mut seen_fields: HashMap<u32, Arc<String>> = HashMap::new();
+    let mut all_keys: HashSet<Rc<String>> = HashSet::new();
+    let mut seen_fields: HashMap<u32, Rc<String>> = HashMap::new();
     let mut seen_oneofs: HashMap<String, String> = HashMap::new();
 
     src.for_each_object_key(|key, src| {
-        let key = Arc::new(key.to_owned());
+        let key = Rc::new(key.to_owned());
         if !all_keys.insert(key.clone()) {
             return Err(PyValueError::new_err(format!("duplicate key: {key}")));
         }
@@ -140,14 +140,14 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
                     src.next_null()?;
                     return Ok(());
                 }
-                let oneof_local = oneof_name.bind(py).to_str()?.to_owned();
-                let field_proto_name = parser.name.bind(py).to_str()?.to_owned();
-                if let Some(prev) = seen_oneofs.get(&oneof_local) {
+                let oneof_local = oneof_name.bind(py).to_str()?;
+                let field_proto_name = parser.name.bind(py).to_str()?;
+                if let Some(prev) = seen_oneofs.get(oneof_local) {
                     return Err(PyValueError::new_err(format!(
                         "oneof set multiple times by {prev} and {field_proto_name}"
                     )));
                 }
-                seen_oneofs.insert(oneof_local, field_proto_name);
+                seen_oneofs.insert(oneof_local.to_owned(), field_proto_name.to_owned());
             }
             read_field(marshaler, parser, message, src, opts, depth)?;
         } else {
@@ -266,7 +266,7 @@ fn read_singular<'py, R: JsonSource<'py>>(
     }
 }
 
-/// Clears a singular field for a resetting `null`, matching `_del_member`.
+/// Clears a singular field for a resetting `null`.
 fn del_singular<'py>(
     py: Python<'py>,
     parser: &FieldParser,
@@ -313,8 +313,10 @@ fn read_list<'py, R: JsonSource<'py>>(
             Exc::Type,
         ));
     }
-    let list_obj = parser.attr.get(py, message.as_any())?;
-    let list = list_obj.cast::<PyList>()?;
+    let list = parser
+        .attr
+        .get(py, message.as_any())?
+        .cast_into::<PyList>()?;
     src.for_each_array_item(|src| {
         if let Some(value) = read_container_item(&ctx, &parser.value, src, opts, depth, false)? {
             list.append(value)?;
@@ -348,8 +350,10 @@ fn read_map<'py, R: JsonSource<'py>>(
             Exc::Type,
         ));
     }
-    let dict_obj = parser.attr.get(py, message.as_any())?;
-    let dict = dict_obj.cast::<PyDict>()?;
+    let dict = parser
+        .attr
+        .get(py, message.as_any())?
+        .cast_into::<PyDict>()?;
     src.for_each_object_key(|key, src| {
         let map_key = read_map_key(py, &ctx, key_type, key)?;
         if let Some(value) = read_container_item(&ctx, &value_parser.value, src, opts, depth, true)?
@@ -361,7 +365,7 @@ fn read_map<'py, R: JsonSource<'py>>(
     Ok(())
 }
 
-/// Reads a list element or map value, matching `_read_container_item`.
+/// Reads a list element or map value.
 #[allow(clippy::too_many_arguments, reason = "internal parser")]
 fn read_container_item<'py, R: JsonSource<'py>>(
     ctx: &FieldContext<'_, 'py>,
@@ -424,7 +428,7 @@ fn read_map_key<'py>(
     }
 }
 
-/// Reads a scalar value, matching `_read_scalar`.
+/// Reads a scalar value.
 pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
     ctx: &FieldContext<'_, 'py>,
     src: &mut R,
@@ -482,7 +486,7 @@ fn read_bytes<'py, R: JsonSource<'py>>(
             Exc::Type,
         ));
     }
-    // Autodetect standard vs URL-safe alphabet, matching `_read_scalar`. The
+    // Autodetect standard vs URL-safe alphabet. The
     // engines are lenient about padding and non-canonical trailing bits, like
     // Python's `base64.b64decode(..., validate=True)`.
     let decoded = src.with_next_str(|text| {
@@ -513,7 +517,7 @@ fn base64_url_safe() -> base64::engine::GeneralPurpose {
     base64::engine::GeneralPurpose::new(&base64::alphabet::URL_SAFE, base64_decode_config())
 }
 
-/// Parses a float/double, matching `_parse_float`.
+/// Parses a float/double.
 fn parse_float<'py, R: JsonSource<'py>>(ctx: &FieldContext<'_, 'py>, src: &mut R) -> PyResult<f64> {
     match src.peek()? {
         JsonKind::Number => {
@@ -552,7 +556,7 @@ fn parse_float<'py, R: JsonSource<'py>>(ctx: &FieldContext<'_, 'py>, src: &mut R
     }
 }
 
-/// Parses an integer scalar, matching `_read_int`/`_parse_int`.
+/// Parses an integer scalar.
 fn read_int<'py, R: JsonSource<'py>>(
     ctx: &FieldContext<'_, 'py>,
     src: &mut R,
@@ -592,8 +596,7 @@ fn read_int<'py, R: JsonSource<'py>>(
     range_check_int(ctx, value, int_type)
 }
 
-/// Parses an integer from a quoted string, matching the `str` branch of
-/// `_parse_int` (then the caller range-checks).
+/// Parses an integer from a quoted string.
 fn parse_int_string<'py>(
     py: Python<'py>,
     ctx: &FieldContext<'_, 'py>,
@@ -654,7 +657,7 @@ fn range_check_int<'py>(
     }
 }
 
-/// Reads an enum value, matching `_read_enum`. Returns `None` when an unknown
+/// Reads an enum value. Returns `None` when an unknown
 /// value is ignored via `ignore_unknown_fields`.
 fn read_enum<'py, R: JsonSource<'py>>(
     enum_desc: &DescEnum,
@@ -814,7 +817,7 @@ fn read_extension<'py, R: JsonSource<'py>>(
             }
         }
         DescFieldValue::List { element, .. } => {
-            // A `null` list is a no-op (matching `_read_list_extension`).
+            // A `null` list is a no-op.
             if src.peek()? == JsonKind::Null {
                 src.next_null()?;
                 return Ok(());
@@ -891,7 +894,6 @@ impl FieldContext<'_, '_> {
     fn error(&self, message: &str, exc: Exc) -> PyErr {
         let full = match self {
             FieldContext::Field { marshaler, name } => {
-                let name = name.to_str().unwrap_or_default();
                 format!("{message} for field {}.{name}", marshaler.type_name)
             }
             FieldContext::Extension { type_name } => {

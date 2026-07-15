@@ -473,9 +473,7 @@ pub(super) fn initialize_message_type(
     Ok(())
 }
 
-/// Parses JSON (`str`/`bytes`/`bytearray`) into `message`. A `bytearray` is
-/// copied up front because parsing re-enters Python (registry, enum, setitem)
-/// and a live borrow of a mutable buffer across that would be unsound.
+/// Parses JSON (`str`/`bytes`/`bytearray`) into `message`.
 fn parse_json_into<'py>(
     py: Python<'py>,
     marshaler: &MessageMarshaler,

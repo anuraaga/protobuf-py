@@ -63,17 +63,13 @@ pub(crate) struct MessageMarshalerInner {
     /// The Python type of the message.
     pub(crate) python_type: Py<PyType>,
 
-    /// The fully-qualified proto type name (e.g. `google.protobuf.Timestamp`),
-    /// pre-extracted so JSON error messages and the Any `@type` path don't
-    /// re-`getattr` it off the descriptor on every call.
+    /// The fully-qualified proto type name (e.g. `google.protobuf.Timestamp`).
     pub(crate) type_name: Box<str>,
 
-    /// Well-known-type classification for JSON marshaling (eager; `None` for
-    /// ordinary messages, so they pay only a null pointer).
+    /// Well-known-type classification for JSON marshaling. None means not a WKT.
     pub(crate) wkt: Option<Box<WktKind>>,
 
-    /// JSON key lookup for parsing: maps both the proto field name and the JSON
-    /// name to the field number.
+    /// JSON key lookup for parsing.
     pub(crate) json_names: HashMap<Box<str>, u32>,
 
     /// The default values for each member.
@@ -116,8 +112,6 @@ impl MessageMarshaler {
         let parser = MessageParser::new(py, &fields, python_type, constants);
         let serializer = MessageSerializer::new(py, message_desc, python_type, &fields, constants)?;
         let wkt = WktKind::detect(py, message_desc, &fields, &serializer, constants)?;
-        // Map both the proto name and JSON name of every field to its number
-        // for parse-side key lookup. Cheap, pure-Rust, O(fields).
         let mut json_names = HashMap::with_capacity(fields.len() * 2);
         for field in &fields {
             json_names.insert(field.name.bind(py).to_str()?.into(), field.number);
