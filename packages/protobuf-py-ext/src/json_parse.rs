@@ -303,7 +303,6 @@ fn read_list<'py, R: JsonSource<'py>>(
     }
     if src.peek()? != JsonKind::Array {
         return Err(field_error(
-            py,
             marshaler,
             parser.name.bind(py),
             &format!("expected list got {}", read_json_value(src)?.get_type()),
@@ -348,7 +347,6 @@ fn read_map<'py, R: JsonSource<'py>>(
     }
     if src.peek()? != JsonKind::Object {
         return Err(field_error(
-            py,
             marshaler,
             parser.name.bind(py),
             &format!("expected dict got {}", read_json_value(src)?.get_type()),
@@ -400,7 +398,7 @@ fn read_container_item<'py, R: JsonSource<'py>>(
             let is_value = matches!(inner.wkt.as_deref(), Some(WktKind::Value(_)));
             if is_null && !is_value {
                 src.next_null()?;
-                return Err(container_null_error(py, marshaler, field_name, is_map));
+                return Err(container_null_error(marshaler, field_name, is_map));
             }
             let target = inner.new_empty_message(py, msg_desc.get_python_type(py))?;
             read_message(inner, &target, src, opts, depth + 1)?;
@@ -412,20 +410,18 @@ fn read_container_item<'py, R: JsonSource<'py>>(
         _ => {
             // Resetting null for a list item / map value: error.
             src.next_null()?;
-            Err(container_null_error(py, marshaler, field_name, is_map))
+            Err(container_null_error(marshaler, field_name, is_map))
         }
     }
 }
 
 fn container_null_error(
-    py: Python<'_>,
     marshaler: &MessageMarshaler,
     field_name: &Bound<'_, PyString>,
     is_map: bool,
 ) -> PyErr {
     let what = if is_map { "map value" } else { "list item" };
     field_error(
-        py,
         marshaler,
         field_name,
         &format!("unexpected null value for {what}"),
@@ -445,7 +441,6 @@ fn read_map_key<'py>(
             "true" => Ok(PyBool::new(py, true).to_owned().into_any()),
             "false" => Ok(PyBool::new(py, false).to_owned().into_any()),
             other => Err(field_error(
-                py,
                 marshaler,
                 field_name,
                 &format!("unexpected bool map key value {other}"),
@@ -470,7 +465,6 @@ pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
             if src.peek()? != JsonKind::Bool {
                 let value = read_json_value(src)?;
                 return Err(field_error(
-                    py,
                     marshaler,
                     field_name,
                     &format!("unexpected json type: {}", value.get_type()),
@@ -483,7 +477,6 @@ pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
             let value = parse_float(marshaler, field_name, src)?;
             if value.is_finite() && !(FLOAT32_MIN..=FLOAT32_MAX).contains(&value) {
                 return Err(field_error(
-                    py,
                     marshaler,
                     field_name,
                     &format!("float value out of range: {value}"),
@@ -506,11 +499,9 @@ fn read_string<'py, R: JsonSource<'py>>(
     field_name: &Bound<'py, PyString>,
     src: &mut R,
 ) -> PyResult<Bound<'py, PyString>> {
-    let py = src.py();
     if src.peek()? != JsonKind::String {
         let value = read_json_value(src)?;
         return Err(field_error(
-            py,
             marshaler,
             field_name,
             &format!("expected string got: {}", value.get_type()),
@@ -529,7 +520,6 @@ fn read_bytes<'py, R: JsonSource<'py>>(
     if src.peek()? != JsonKind::String {
         let value = read_json_value(src)?;
         return Err(field_error(
-            py,
             marshaler,
             field_name,
             &format!("expected base64-encoded string got: {}", value.get_type()),
@@ -548,7 +538,6 @@ fn read_bytes<'py, R: JsonSource<'py>>(
     match decoded {
         Ok(bytes) => Ok(PyBytes::new(py, &bytes).into_any()),
         Err(_) => Err(field_error(
-            py,
             marshaler,
             field_name,
             "invalid base64 data",
@@ -579,13 +568,11 @@ fn parse_float<'py, R: JsonSource<'py>>(
     field_name: &Bound<'py, PyString>,
     src: &mut R,
 ) -> PyResult<f64> {
-    let py = src.py();
     match src.peek()? {
         JsonKind::Number => {
             let value = src.next_float()?;
             if !value.is_finite() {
                 return Err(field_error(
-                    py,
                     marshaler,
                     field_name,
                     "unexpected infinite/NaN number",
@@ -603,7 +590,6 @@ fn parse_float<'py, R: JsonSource<'py>>(
                 _ => {
                     if text.is_empty() || text.trim() != text {
                         return Err(field_error(
-                            py,
                             marshaler,
                             field_name,
                             &format!("invalid float/double value: {text}"),
@@ -613,14 +599,12 @@ fn parse_float<'py, R: JsonSource<'py>>(
                     match text.parse::<f64>() {
                         Ok(value) if value.is_finite() => Ok(value),
                         Ok(_) => Err(field_error(
-                            py,
                             marshaler,
                             field_name,
                             "unexpected infinite/NaN number",
                             Exc::Value,
                         )),
                         Err(_) => Err(field_error(
-                            py,
                             marshaler,
                             field_name,
                             &format!("invalid float/double value: {text}"),
@@ -633,7 +617,6 @@ fn parse_float<'py, R: JsonSource<'py>>(
         _ => {
             let value = read_json_value(src)?;
             Err(field_error(
-                py,
                 marshaler,
                 field_name,
                 &format!("unexpected json type: {}", value.get_type()),
@@ -660,7 +643,6 @@ fn read_int<'py, R: JsonSource<'py>>(
                 let float_value = number.extract::<f64>()?;
                 if float_value.fract() != 0.0 {
                     return Err(field_error(
-                        py,
                         marshaler,
                         field_name,
                         &format!("expected integer, got non-integer float: {}", number.str()?),
@@ -673,12 +655,11 @@ fn read_int<'py, R: JsonSource<'py>>(
         JsonKind::String => {
             let text = src.next_string()?;
             return parse_int_string(py, marshaler, field_name, &text, int_type)
-                .and_then(|value| range_check_int(py, marshaler, field_name, value, int_type));
+                .and_then(|value| range_check_int(marshaler, field_name, value, int_type));
         }
         _ => {
             let value = read_json_value(src)?;
             return Err(field_error(
-                py,
                 marshaler,
                 field_name,
                 &format!("unexpected json type: {}", value.get_type()),
@@ -686,7 +667,7 @@ fn read_int<'py, R: JsonSource<'py>>(
             ));
         }
     };
-    range_check_int(py, marshaler, field_name, value, int_type)
+    range_check_int(marshaler, field_name, value, int_type)
 }
 
 /// Parses an integer from a quoted string, matching the `str` branch of
@@ -700,7 +681,6 @@ fn parse_int_string<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     if text.is_empty() || text.trim() != text {
         return Err(field_error(
-            py,
             marshaler,
             field_name,
             &format!("invalid integer value: {text}"),
@@ -718,7 +698,6 @@ fn parse_int_string<'py>(
             py_int_from_float(py, &float_obj)
         }
         _ => Err(field_error(
-            py,
             marshaler,
             field_name,
             &format!("invalid integer value: '{text}'"),
@@ -735,7 +714,6 @@ fn py_int_from_float<'py>(
 }
 
 fn range_check_int<'py>(
-    py: Python<'py>,
     marshaler: &MessageMarshaler,
     field_name: &Bound<'py, PyString>,
     value: Bound<'py, PyAny>,
@@ -760,7 +738,6 @@ fn range_check_int<'py>(
         Ok(value)
     } else {
         Err(field_error(
-            py,
             marshaler,
             field_name,
             &format!("value {} out of range for {name}", value.str()?),
@@ -858,7 +835,7 @@ fn handle_unknown_key<'py, R: JsonSource<'py>>(
             let extendee = extension.getattr("extendee")?;
             let extendee_name = extendee.getattr(&marshaler.constants.type_name)?;
             let extendee_name = extendee_name.cast::<PyString>()?.to_str()?;
-            if extendee_name == message_type_name(py, marshaler)? {
+            if extendee_name == &*marshaler.type_name {
                 read_extension(marshaler, message, &extension, src, opts)?;
             } else {
                 src.skip()?;
@@ -871,7 +848,7 @@ fn handle_unknown_key<'py, R: JsonSource<'py>>(
     } else {
         Err(PyValueError::new_err(format!(
             "cannot decode {} from JSON: key: '{raw_key}' is unknown",
-            message_type_name(py, marshaler)?
+            marshaler.type_name
         )))
     }
 }
@@ -956,24 +933,14 @@ pub(crate) fn read_json_value<'py, R: JsonSource<'py>>(src: &mut R) -> PyResult<
 
 // ---- helpers ----
 
-pub(crate) fn message_type_name(py: Python<'_>, marshaler: &MessageMarshaler) -> PyResult<String> {
-    marshaler
-        .python_type
-        .bind(py)
-        .getattr(&marshaler.constants.desc)?
-        .getattr(&marshaler.constants.type_name)?
-        .extract()
-}
-
 fn field_error(
-    py: Python<'_>,
     marshaler: &MessageMarshaler,
     field_name: &Bound<'_, PyString>,
     message: &str,
     exc: Exc,
 ) -> PyErr {
     let name = field_name.to_str().unwrap_or_default();
-    let parent = message_type_name(py, marshaler).unwrap_or_default();
+    let parent = &marshaler.type_name;
     let full = format!("{message} for field {parent}.{name}");
     match exc {
         Exc::Value => PyValueError::new_err(full),

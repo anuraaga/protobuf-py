@@ -63,6 +63,11 @@ pub(crate) struct MessageMarshalerInner {
     /// The Python type of the message.
     pub(crate) python_type: Py<PyType>,
 
+    /// The fully-qualified proto type name (e.g. `google.protobuf.Timestamp`),
+    /// pre-extracted so JSON error messages and the Any `@type` path don't
+    /// re-`getattr` it off the descriptor on every call.
+    pub(crate) type_name: Box<str>,
+
     /// Well-known-type classification for JSON marshaling (eager; `None` for
     /// ordinary messages, so they pay only a null pointer).
     pub(crate) wkt: Option<Box<WktKind>>,
@@ -103,6 +108,10 @@ impl MessageMarshaler {
     ) -> PyResult<Self> {
         let python_type_any = message_desc.getattr(&constants.type_)?;
         let python_type = python_type_any.cast::<PyType>()?;
+        let type_name: Box<str> = message_desc
+            .getattr(&constants.type_name)?
+            .extract::<String>()?
+            .into_boxed_str();
         let fields = message_fields(py, message_desc, constants)?;
         let parser = MessageParser::new(py, &fields, python_type, constants);
         let serializer = MessageSerializer::new(py, message_desc, python_type, &fields, constants)?;
@@ -192,6 +201,7 @@ impl MessageMarshaler {
                 members,
                 max_field_number,
                 python_type: python_type.clone().unbind(),
+                type_name,
                 wkt,
                 json_names,
                 defaults,

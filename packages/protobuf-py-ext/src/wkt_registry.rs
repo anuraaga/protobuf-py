@@ -18,7 +18,7 @@ use crate::{
     attribute_access::AttributeAccess,
     constants::Constants,
     descriptor::{DescField, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
-    json_parse::{FromJsonOpts, message_type_name, read_json_value, read_message, read_scalar},
+    json_parse::{FromJsonOpts, read_json_value, read_message, read_scalar},
     json_serialize::{
         JsonOpts, read_int32_attr, read_int64_attr, type_url_to_name, write_message_json,
         write_scalar_json,
@@ -48,7 +48,7 @@ impl WktTimestamp {
     ) -> PyResult<()> {
         let sec = read_int64_attr(py, message, &self.seconds)?;
         let nan = read_int32_attr(py, message, &self.nanos)?;
-        sink.str(&timestamp_to_rfc3339(sec, nan)?)
+        sink.str(&format_timestamp(sec, nan)?)
     }
 
     fn read_json<'py, R: JsonSource<'py>>(
@@ -60,8 +60,8 @@ impl WktTimestamp {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(py, marshaler, src)?;
-        let (sec, nan) = parse_timestamp(&message_type_name(py, marshaler)?, &text)?;
+        let text = expect_wkt_string(marshaler, src)?;
+        let (sec, nan) = parse_timestamp(&marshaler.type_name, &text)?;
         set_seconds_nanos(py, message, &self.seconds, &self.nanos, sec, nan)
     }
 }
@@ -83,7 +83,7 @@ impl WktDuration {
     ) -> PyResult<()> {
         let sec = read_int64_attr(py, message, &self.seconds)?;
         let nan = read_int32_attr(py, message, &self.nanos)?;
-        sink.str(&duration_to_json(sec, nan)?)
+        sink.str(&format_duration(sec, nan)?)
     }
 
     fn read_json<'py, R: JsonSource<'py>>(
@@ -95,8 +95,8 @@ impl WktDuration {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(py, marshaler, src)?;
-        let (sec, nan) = parse_duration(&message_type_name(py, marshaler)?, &text)?;
+        let text = expect_wkt_string(marshaler, src)?;
+        let (sec, nan) = parse_duration(&marshaler.type_name, &text)?;
         set_seconds_nanos(py, message, &self.seconds, &self.nanos, sec, nan)
     }
 }
@@ -175,7 +175,7 @@ impl WktAny {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let type_name = message_type_name(py, marshaler)?;
+        let type_name: &str = &marshaler.type_name;
         // Buffer the subtree so `@type` may appear in any position.
         let tree = read_json_value(src)?;
         let Ok(dict) = tree.cast::<PyDict>() else {
@@ -249,10 +249,7 @@ impl WktAny {
         }
 
         // Pack natively into the Any's type_url/value fields.
-        let packed_url = format!(
-            "type.googleapis.com/{}",
-            message_type_name(py, &inner_marshaler)?
-        );
+        let packed_url = format!("type.googleapis.com/{}", inner_marshaler.type_name);
         let packed_value = inner_marshaler.to_binary(py, &inner_msg, true)?;
         self.type_url
             .set(message.as_any(), &PyString::new(py, &packed_url).into_any())?;
@@ -306,7 +303,7 @@ impl WktFieldMask {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(py, marshaler, src)?;
+        let text = expect_wkt_string(marshaler, src)?;
         if text.is_empty() {
             return Ok(());
         }
@@ -316,7 +313,7 @@ impl WktFieldMask {
             if part.contains('_') {
                 return Err(PyValueError::new_err(format!(
                     "cannot decode {} from JSON: path names must be lowerCamelCase",
-                    message_type_name(py, marshaler)?
+                    marshaler.type_name
                 )));
             }
             paths.append(PyString::new(py, &buffa_wkt::camel_to_snake(part)))?;
@@ -366,7 +363,7 @@ impl WktStruct {
             let json = read_json_value(src)?;
             return Err(PyTypeError::new_err(format!(
                 "cannot decode {} from JSON: {}",
-                message_type_name(py, marshaler)?,
+                marshaler.type_name,
                 json.str()?
             )));
         }
@@ -425,7 +422,7 @@ impl WktListValue {
             let json = read_json_value(src)?;
             return Err(PyTypeError::new_err(format!(
                 "cannot decode {} from JSON: {}",
-                message_type_name(py, marshaler)?,
+                marshaler.type_name,
                 json.str()?
             )));
         }
@@ -884,10 +881,7 @@ fn match_wrapper(fields: &[DescField], by_name: &HashMap<String, usize>) -> Opti
     }
 }
 
-// ---- Shared marshal helpers ----
-
 fn expect_wkt_string<'py, R: JsonSource<'py>>(
-    py: Python<'py>,
     marshaler: &MessageMarshaler,
     src: &mut R,
 ) -> PyResult<String> {
@@ -895,7 +889,7 @@ fn expect_wkt_string<'py, R: JsonSource<'py>>(
         let value = read_json_value(src)?;
         return Err(PyTypeError::new_err(format!(
             "cannot decode {} from JSON: {}",
-            message_type_name(py, marshaler)?,
+            marshaler.type_name,
             value.str()?
         )));
     }
@@ -915,22 +909,15 @@ fn set_seconds_nanos<'py>(
     Ok(())
 }
 
-// ---- Low-level Timestamp/Duration formatting (buffa::json_helpers::wkt) ----
-//
-// The shared civil-date math, RFC 3339 / decimal-seconds grammars, and bounds
-// live in `buffa_wkt`. These wrappers only re-clothe buffa's `&'static str`
-// errors in the pure-Python-parity messages the tests pin. FieldMask uses
-// buffa's `snake_to_camel`/`camel_to_snake`/`field_mask_path_round_trips`
-// directly (see `WktFieldMask`).
+// We go ahead and reuse buffa's logic for formatting, similar to how we use
+// it for varint handling in binary marhsaling. It's unclear if these are true
+// public API, but we'll just vendor them in the future if needed.
+// We make sure most error messages match our Python implementation, sometimes meaning
+// double (cheap) validation.
 
-// Seconds/duration bounds come from `buffa_wkt` (MIN/MAX_TIMESTAMP_SECS,
-// MAX_DURATION_SECS). This one is only for our own validation messages, which
-// must stay byte-identical to the pure-Python text.
 const NANOS_PER_SECOND_MAX: i32 = 999_999_999;
 
-/// Formats a Timestamp as RFC 3339, matching `WktTimestamp.to_json_value`. The
-/// range checks are ours (not buffa's) so the error text matches `_validate.py`.
-fn timestamp_to_rfc3339(seconds: i64, nanos: i32) -> PyResult<String> {
+fn format_timestamp(seconds: i64, nanos: i32) -> PyResult<String> {
     if !(buffa_wkt::MIN_TIMESTAMP_SECS..=buffa_wkt::MAX_TIMESTAMP_SECS).contains(&seconds) {
         return Err(PyValueError::new_err("timestamp seconds out of range"));
     }
@@ -940,9 +927,7 @@ fn timestamp_to_rfc3339(seconds: i64, nanos: i32) -> PyResult<String> {
     buffa_wkt::fmt_timestamp(seconds, nanos).map_err(PyValueError::new_err)
 }
 
-/// Formats a Duration, matching `WktDuration.to_json_value`. The range/sign
-/// checks are ours so the error text matches `_validate.py`.
-fn duration_to_json(seconds: i64, nanos: i32) -> PyResult<String> {
+fn format_duration(seconds: i64, nanos: i32) -> PyResult<String> {
     if !(-buffa_wkt::MAX_DURATION_SECS..=buffa_wkt::MAX_DURATION_SECS).contains(&seconds) {
         return Err(PyValueError::new_err("duration seconds out of range"));
     }
@@ -957,16 +942,10 @@ fn duration_to_json(seconds: i64, nanos: i32) -> PyResult<String> {
     buffa_wkt::fmt_duration(seconds, nanos).map_err(PyValueError::new_err)
 }
 
-/// Parses an RFC 3339 timestamp into (seconds, nanos), matching
-/// `WktTimestamp.from_json`. `type_name` is used in the error message.
 fn parse_timestamp(type_name: &str, text: &str) -> PyResult<(i64, i32)> {
     buffa_wkt::parse_timestamp(text).map_err(|err| {
-        // buffa's post-offset range failure maps to the pure-Python range
-        // message; every other (format/date) failure is "invalid RFC 3339
-        // string". Matched by prefix so a reworded buffa suffix still maps;
-        // `test_timestamp_from_json_error` pins this prefix so we catch a
-        // buffa rename (a valid-but-out-of-range string would silently become
-        // "invalid RFC 3339" otherwise).
+        // String matching on an error message not the best, but it works and
+        // saves us a lot of parsing logic, notably tricky calendar date checking.
         let detail = if err.starts_with("Timestamp out of range") {
             "must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive"
         } else {
@@ -976,7 +955,6 @@ fn parse_timestamp(type_name: &str, text: &str) -> PyResult<(i64, i32)> {
     })
 }
 
-/// Parses a Duration into (seconds, nanos), matching `WktDuration.from_json`.
 fn parse_duration(type_name: &str, text: &str) -> PyResult<(i64, i32)> {
     buffa_wkt::parse_duration(text)
         .map_err(|_| PyValueError::new_err(format!("cannot decode {type_name} from JSON: {text}")))
