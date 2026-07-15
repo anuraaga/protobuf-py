@@ -440,7 +440,7 @@ impl NativeMessage {
         self.present.get(field_number)
     }
 
-    fn get_marshaler(slf: &Bound<'_, Self>) -> PyResult<MessageMarshaler> {
+    pub(crate) fn get_marshaler(slf: &Bound<'_, Self>) -> PyResult<MessageMarshaler> {
         if let Some(marshaler) = &slf.get().marshaler {
             Ok(marshaler.clone())
         } else {

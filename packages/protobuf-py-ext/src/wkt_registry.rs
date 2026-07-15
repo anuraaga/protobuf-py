@@ -20,8 +20,7 @@ use crate::{
     descriptor::{DescField, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
     json_parse::{FromJsonOpts, read_json_value, read_message, read_scalar},
     json_serialize::{
-        JsonOpts, read_int32_attr, read_int64_attr, type_url_to_name, write_message_json,
-        write_scalar_json,
+        JsonOpts, read_int32_attr, read_int64_attr, write_message_json, write_scalar_json,
     },
     json_sink::JsonSink,
     json_source::{JsonKind, JsonSource, PyTreeSource},
@@ -46,9 +45,9 @@ impl WktTimestamp {
         sink: &mut S,
         _opts: &JsonOpts,
     ) -> PyResult<()> {
-        let sec = read_int64_attr(py, message, &self.seconds)?;
-        let nan = read_int32_attr(py, message, &self.nanos)?;
-        sink.str(&format_timestamp(sec, nan)?)
+        let secs = read_int64_attr(py, message, &self.seconds)?;
+        let nanos = read_int32_attr(py, message, &self.nanos)?;
+        sink.str(&format_timestamp(secs, nanos)?)
     }
 
     fn read_json<'py, R: JsonSource<'py>>(
@@ -60,12 +59,13 @@ impl WktTimestamp {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(marshaler, src)?;
-        let (sec, nan) = parse_timestamp(&marshaler.type_name, &text)?;
+        let (secs, nanos) = with_wkt_str(marshaler, src, |text| {
+            parse_timestamp(&marshaler.type_name, text)
+        })?;
         self.seconds
-            .set(message.as_any(), PyInt::new(py, sec).as_any())?;
+            .set(message.as_any(), PyInt::new(py, secs).as_any())?;
         self.nanos
-            .set(message.as_any(), PyInt::new(py, nan).as_any())?;
+            .set(message.as_any(), PyInt::new(py, nanos).as_any())?;
         Ok(())
     }
 }
@@ -85,9 +85,9 @@ impl WktDuration {
         sink: &mut S,
         _opts: &JsonOpts,
     ) -> PyResult<()> {
-        let sec = read_int64_attr(py, message, &self.seconds)?;
-        let nan = read_int32_attr(py, message, &self.nanos)?;
-        sink.str(&format_duration(sec, nan)?)
+        let secs = read_int64_attr(py, message, &self.seconds)?;
+        let nanos = read_int32_attr(py, message, &self.nanos)?;
+        sink.str(&format_duration(secs, nanos)?)
     }
 
     fn read_json<'py, R: JsonSource<'py>>(
@@ -99,12 +99,13 @@ impl WktDuration {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(marshaler, src)?;
-        let (sec, nan) = parse_duration(&marshaler.type_name, &text)?;
+        let (secs, nanos) = with_wkt_str(marshaler, src, |text| {
+            parse_duration(&marshaler.type_name, text)
+        })?;
         self.seconds
-            .set(message.as_any(), PyInt::new(py, sec).as_any())?;
+            .set(message.as_any(), PyInt::new(py, secs).as_any())?;
         self.nanos
-            .set(message.as_any(), PyInt::new(py, nan).as_any())?;
+            .set(message.as_any(), PyInt::new(py, nanos).as_any())?;
         Ok(())
     }
 }
@@ -207,7 +208,7 @@ impl WktAny {
         };
         let type_name = match type_url.rfind('/') {
             Some(index) => &type_url[index + 1..],
-            None => &type_url,
+            None => type_url,
         };
         let registry = opts.registry.as_ref().map(|registry| registry.bind(py));
         let desc = match &registry {
@@ -234,12 +235,12 @@ impl WktAny {
                 .get_item("value")?
                 .unwrap_or_else(|| py.None().into_bound(py));
             let mut sub = PyTreeSource::new(py, value);
-            read_message(&inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
+            read_message(inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
         } else {
             let copy = dict.copy()?;
             copy.del_item("@type")?;
             let mut sub = PyTreeSource::new(py, copy.into_any());
-            read_message(&inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
+            read_message(inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
         }
 
         // Any.pack
@@ -297,24 +298,25 @@ impl WktFieldMask {
         _depth: usize,
     ) -> PyResult<()> {
         let py = src.py();
-        let text = expect_wkt_string(marshaler, src)?;
-        if text.is_empty() {
-            return Ok(());
-        }
         let paths = self
             .paths
             .get(py, message.as_any())?
             .cast_into::<PyList>()?;
-        for part in text.split(',') {
-            if part.contains('_') {
-                return Err(PyValueError::new_err(format!(
-                    "cannot decode {} from JSON: path names must be lowerCamelCase",
-                    marshaler.type_name
-                )));
+        with_wkt_str(marshaler, src, |text| {
+            if text.is_empty() {
+                return Ok(());
             }
-            paths.append(&buffa_wkt::camel_to_snake(part))?;
-        }
-        Ok(())
+            for part in text.split(',') {
+                if part.contains('_') {
+                    return Err(PyValueError::new_err(format!(
+                        "cannot decode {} from JSON: path names must be lowerCamelCase",
+                        marshaler.type_name
+                    )));
+                }
+                paths.append(buffa_wkt::camel_to_snake(part))?;
+            }
+            Ok(())
+        })
     }
 }
 
@@ -368,14 +370,13 @@ impl WktStruct {
             .fields
             .get(py, message.as_any())?
             .cast_into::<PyDict>()?;
-        let mut maybe_key = src.next_object()?;
-        while let Some(key) = maybe_key {
+        src.for_each_object_key(|key, src| {
             let value_msg =
                 value_marshaler.new_empty_message(py, self.value.get_python_type(py))?;
             read_message(value_marshaler, &value_msg, src, opts, depth + 1)?;
-            dict.set_item(&key, value_msg)?;
-            maybe_key = src.next_key()?;
-        }
+            dict.set_item(key, value_msg)?;
+            Ok(())
+        })?;
         Ok(())
     }
 }
@@ -429,14 +430,13 @@ impl WktListValue {
             .values
             .get(py, message.as_any())?
             .cast_into::<PyList>()?;
-        let mut not_done = src.next_array()?;
-        while not_done {
+        src.for_each_array_item(|src| {
             let value_msg =
                 element_marshaler.new_empty_message(py, self.element.get_python_type(py))?;
             read_message(element_marshaler, &value_msg, src, opts, depth + 1)?;
             list.append(value_msg)?;
-            not_done = src.array_step()?;
-        }
+            Ok(())
+        })?;
         Ok(())
     }
 }
@@ -517,7 +517,7 @@ impl WktValue {
                 )
             }
             JsonKind::String => {
-                let string = src.next_str()?;
+                let string = src.next_py_str()?;
                 Oneof::new(self.string_name.bind(py), &string)
             }
             JsonKind::Array => {
@@ -868,10 +868,11 @@ fn match_wrapper(fields: &[DescField], by_name: &HashMap<String, usize>) -> Opti
     }
 }
 
-fn expect_wkt_string<'py, R: JsonSource<'py>>(
+fn with_wkt_str<'py, S: JsonSource<'py>, R>(
     marshaler: &MessageMarshaler,
-    src: &mut R,
-) -> PyResult<String> {
+    src: &mut S,
+    f: impl FnOnce(&str) -> PyResult<R>,
+) -> PyResult<R> {
     if src.peek()? != JsonKind::String {
         let value = read_json_value(src)?;
         return Err(PyTypeError::new_err(format!(
@@ -880,7 +881,18 @@ fn expect_wkt_string<'py, R: JsonSource<'py>>(
             value.str()?
         )));
     }
-    src.next_string()
+    src.with_next_str(f)
+}
+
+fn type_url_to_name(url: &str) -> PyResult<&str> {
+    let name = match url.rfind('/') {
+        Some(index) => &url[index + 1..],
+        None => url,
+    };
+    if name.is_empty() {
+        return Err(PyValueError::new_err(format!("invalid type url: {url}")));
+    }
+    Ok(name)
 }
 
 // We go ahead and reuse buffa's logic for formatting, similar to how we use

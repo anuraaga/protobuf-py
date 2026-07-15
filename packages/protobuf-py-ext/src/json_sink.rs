@@ -149,10 +149,6 @@ impl JsonSink for StringSink {
     }
 
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        // Fast paths avoiding a Python `repr` call, both byte-identical to
-        // `json.dumps`: ryu for a finite float in Python's fixed-notation range,
-        // and itoa for an int that fits `i64`. Scientific-notation floats
-        // and out-of-`i64` ints fall back to `repr` for exact parity.
         if value.is_instance_of::<PyFloat>() {
             let float_value = value.extract::<f64>()?;
             if let Some(text) = ryu_fixed_notation(float_value) {
@@ -163,6 +159,8 @@ impl JsonSink for StringSink {
         } else if let Ok(int_value) = value.extract::<i64>() {
             return self.i64(int_value);
         }
+        // Scientific-notation floating point, we use Python to reproduce
+        // the formatting exactly.
         let repr = value.repr()?;
         self.before_value();
         self.out.push_str(repr.to_str()?);
@@ -210,7 +208,7 @@ enum ValueFrame<'py> {
     },
 }
 
-/// A `JsonSink` that builds a Python object tree (for `message_to_json_value`).
+/// A `JsonSink` that builds a Python object tree.
 pub(crate) struct PyValueSink<'py> {
     py: Python<'py>,
     root: Option<Bound<'py, PyAny>>,
@@ -281,7 +279,7 @@ impl JsonSink for PyValueSink<'_> {
 
     fn py_key(&mut self, key: &Bound<'_, PyString>) -> PyResult<()> {
         // Reuse the existing Python string as the dict key (rebind to the sink's
-        // GIL lifetime), avoiding a fresh allocation.
+        // GIL lifetime).
         let key = key.clone().unbind().into_bound(self.py);
         self.set_pending_key(key)
     }
@@ -301,7 +299,7 @@ impl JsonSink for PyValueSink<'_> {
     }
 
     fn py_number(&mut self, value: &Bound<'_, PyAny>) -> PyResult<()> {
-        // Rebind to the sink's GIL lifetime (same object, longer-lived token).
+        // Rebind to the sink's GIL lifetime.
         let value = value.clone().unbind().into_bound(self.py);
         self.attach(&value)
     }
@@ -312,7 +310,7 @@ impl JsonSink for PyValueSink<'_> {
     }
 
     fn py_str(&mut self, value: &Bound<'_, PyString>) -> PyResult<()> {
-        // Rebind to the sink's GIL lifetime (same object, longer-lived token).
+        // Rebind to the sink's GIL lifetime.
         let value = value.clone().unbind().into_bound(self.py);
         self.attach(&value)
     }

@@ -4,7 +4,10 @@
 //! reference exactly where practical. Registry-backed Any/extension handling
 //! calls the Python `Registry` object directly (never ported to Rust).
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use base64::Engine as _;
 use pyo3::{
@@ -109,16 +112,16 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         )));
     }
 
-    let mut all_keys: HashSet<String> = HashSet::new();
-    let mut seen_fields: HashMap<u32, String> = HashMap::new();
+    let mut all_keys: HashSet<Arc<String>> = HashSet::new();
+    let mut seen_fields: HashMap<u32, Arc<String>> = HashMap::new();
     let mut seen_oneofs: HashMap<String, String> = HashMap::new();
 
-    let mut key = src.next_object()?;
-    while let Some(raw_key) = key {
-        if !all_keys.insert(raw_key.clone()) {
-            return Err(PyValueError::new_err(format!("duplicate key: {raw_key}")));
+    src.for_each_object_key(|key, src| {
+        let key = Arc::new(key.to_owned());
+        if !all_keys.insert(key.clone()) {
+            return Err(PyValueError::new_err(format!("duplicate key: {key}")));
         }
-        let field_number = marshaler.json_names.get(raw_key.as_str()).copied();
+        let field_number = marshaler.json_names.get(key.as_str()).copied();
         if let Some(number) = field_number {
             let parser = marshaler
                 .parser
@@ -126,17 +129,16 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
                 .ok_or_else(|| PyValueError::new_err("field table lookup failed"))?;
             if let Some(prev) = seen_fields.get(&number) {
                 return Err(PyValueError::new_err(format!(
-                    "field set multiple times by {prev} and {raw_key}"
+                    "field set multiple times by {prev} and {key}"
                 )));
             }
-            seen_fields.insert(number, raw_key.clone());
+            seen_fields.insert(number, key.clone());
 
             if let Some(oneof_name) = &parser.oneof_name {
                 let is_scalar = matches!(parser.value, FieldParserValue::Scalar(_));
                 if is_scalar && src.peek()? == JsonKind::Null {
                     src.next_null()?;
-                    key = src.next_key()?;
-                    continue;
+                    return Ok(());
                 }
                 let oneof_local = oneof_name.bind(py).to_str()?.to_owned();
                 let field_proto_name = parser.name.bind(py).to_str()?.to_owned();
@@ -149,10 +151,10 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
             }
             read_field(marshaler, parser, message, src, opts, depth)?;
         } else {
-            handle_unknown_key(marshaler, message, &raw_key, src, opts)?;
+            handle_unknown_key(marshaler, message, &key, src, opts)?;
         }
-        key = src.next_key()?;
-    }
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -311,8 +313,7 @@ fn read_list<'py, R: JsonSource<'py>>(
     }
     let list_obj = parser.attr.get(py, message.as_any())?;
     let list = list_obj.cast::<PyList>()?;
-    let mut has = src.next_array()?;
-    while has {
+    src.for_each_array_item(|src| {
         if let Some(value) = read_container_item(
             marshaler,
             parser.name.bind(py),
@@ -324,8 +325,8 @@ fn read_list<'py, R: JsonSource<'py>>(
         )? {
             list.append(value)?;
         }
-        has = src.array_step()?;
-    }
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -355,9 +356,8 @@ fn read_map<'py, R: JsonSource<'py>>(
     }
     let dict_obj = parser.attr.get(py, message.as_any())?;
     let dict = dict_obj.cast::<PyDict>()?;
-    let mut key = src.next_object()?;
-    while let Some(raw_key) = key {
-        let map_key = read_map_key(py, marshaler, parser.name.bind(py), key_type, &raw_key)?;
+    src.for_each_object_key(|key, src| {
+        let map_key = read_map_key(py, marshaler, parser.name.bind(py), key_type, key)?;
         if let Some(value) = read_container_item(
             marshaler,
             parser.name.bind(py),
@@ -369,8 +369,8 @@ fn read_map<'py, R: JsonSource<'py>>(
         )? {
             dict.set_item(map_key, value)?;
         }
-        key = src.next_key()?;
-    }
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -508,7 +508,7 @@ fn read_string<'py, R: JsonSource<'py>>(
             Exc::Type,
         ));
     }
-    src.next_str()
+    src.next_py_str()
 }
 
 fn read_bytes<'py, R: JsonSource<'py>>(
@@ -526,24 +526,19 @@ fn read_bytes<'py, R: JsonSource<'py>>(
             Exc::Type,
         ));
     }
-    let text = src.next_string()?;
     // Autodetect standard vs URL-safe alphabet, matching `_read_scalar`. The
     // engines are lenient about padding and non-canonical trailing bits, like
     // Python's `base64.b64decode(..., validate=True)`.
-    let decoded = if text.contains('-') || text.contains('_') {
-        base64_url_safe().decode(text.as_str())
-    } else {
-        base64_standard().decode(text.as_str())
-    };
-    match decoded {
-        Ok(bytes) => Ok(PyBytes::new(py, &bytes).into_any()),
-        Err(_) => Err(field_error(
-            marshaler,
-            field_name,
-            "invalid base64 data",
-            Exc::Value,
-        )),
-    }
+    let decoded = src.with_next_str(|text| {
+        let decoded = if text.contains('-') || text.contains('_') {
+            base64_url_safe().decode(text)
+        } else {
+            base64_standard().decode(text)
+        }
+        .map_err(|_| field_error(marshaler, field_name, "invalid base64 data", Exc::Value))?;
+        Ok(decoded)
+    })?;
+    Ok(PyBytes::new(py, &decoded).into_any())
 }
 
 /// Lenient base64 decode config matching Python's `b64decode`: optional padding,
@@ -581,39 +576,36 @@ fn parse_float<'py, R: JsonSource<'py>>(
             }
             Ok(value)
         }
-        JsonKind::String => {
-            let text = src.next_string()?;
-            match text.as_str() {
-                "Infinity" => Ok(f64::INFINITY),
-                "-Infinity" => Ok(f64::NEG_INFINITY),
-                "NaN" => Ok(f64::NAN),
-                _ => {
-                    if text.is_empty() || text.trim() != text {
-                        return Err(field_error(
-                            marshaler,
-                            field_name,
-                            &format!("invalid float/double value: {text}"),
-                            Exc::Value,
-                        ));
-                    }
-                    match text.parse::<f64>() {
-                        Ok(value) if value.is_finite() => Ok(value),
-                        Ok(_) => Err(field_error(
-                            marshaler,
-                            field_name,
-                            "unexpected infinite/NaN number",
-                            Exc::Value,
-                        )),
-                        Err(_) => Err(field_error(
-                            marshaler,
-                            field_name,
-                            &format!("invalid float/double value: {text}"),
-                            Exc::Value,
-                        )),
-                    }
+        JsonKind::String => src.with_next_str(|text| match text {
+            "Infinity" => Ok(f64::INFINITY),
+            "-Infinity" => Ok(f64::NEG_INFINITY),
+            "NaN" => Ok(f64::NAN),
+            _ => {
+                if text.is_empty() || text.trim() != text {
+                    return Err(field_error(
+                        marshaler,
+                        field_name,
+                        &format!("invalid float/double value: {text}"),
+                        Exc::Value,
+                    ));
+                }
+                match text.parse::<f64>() {
+                    Ok(value) if value.is_finite() => Ok(value),
+                    Ok(_) => Err(field_error(
+                        marshaler,
+                        field_name,
+                        "unexpected infinite/NaN number",
+                        Exc::Value,
+                    )),
+                    Err(_) => Err(field_error(
+                        marshaler,
+                        field_name,
+                        &format!("invalid float/double value: {text}"),
+                        Exc::Value,
+                    )),
                 }
             }
-        }
+        }),
         _ => {
             let value = read_json_value(src)?;
             Err(field_error(
@@ -653,9 +645,10 @@ fn read_int<'py, R: JsonSource<'py>>(
             }
         }
         JsonKind::String => {
-            let text = src.next_string()?;
-            return parse_int_string(py, marshaler, field_name, &text, int_type)
-                .and_then(|value| range_check_int(marshaler, field_name, value, int_type));
+            return src.with_next_str(|text| {
+                parse_int_string(py, marshaler, field_name, text, int_type)
+                    .and_then(|value| range_check_int(marshaler, field_name, value, int_type))
+            });
         }
         _ => {
             let value = read_json_value(src)?;
@@ -781,9 +774,8 @@ fn read_enum<'py, R: JsonSource<'py>>(
                 Ok(Some(enum_desc.py_type.bind(py).call1((int_value,))?))
             }
         }
-        JsonKind::String => {
-            let name = src.next_string()?;
-            if let Some(number) = enum_desc.numbers_by_name.get(&name) {
+        JsonKind::String => src.with_next_str(|name| {
+            if let Some(number) = enum_desc.numbers_by_name.get(name) {
                 let value = enum_desc
                     .values
                     .get(number)
@@ -792,10 +784,10 @@ fn read_enum<'py, R: JsonSource<'py>>(
             } else if opts.ignore_unknown_fields {
                 Ok(None)
             } else {
-                let value = read_json_value_from_string(py, &name);
+                let value = read_json_value_from_string(py, name);
                 Err(decode_enum_error(py, enum_desc, &value))
             }
-        }
+        }),
         _ => {
             let value = read_json_value(src)?;
             Err(decode_enum_error(py, enum_desc, &value))
@@ -867,7 +859,6 @@ fn read_extension<'py, R: JsonSource<'py>>(
     let ext_type = extension.getattr(&marshaler.constants.type_)?;
     // A null clears the extension; otherwise route through message_from_json_value
     // on the extension's value descriptor.
-    let _ = opts;
     if value.is_none() {
         message.as_any().del_item(&ext_type)?;
         return Ok(());
@@ -897,8 +888,7 @@ fn make_from_json_options<'py>(
     options_cls.call((), Some(&kwargs))
 }
 
-/// Materializes the next JSON value as a Python object (for Any subtrees and
-/// error type reporting).
+/// Materializes the next JSON value as a Python object.
 pub(crate) fn read_json_value<'py, R: JsonSource<'py>>(src: &mut R) -> PyResult<Bound<'py, PyAny>> {
     let py = src.py();
     match src.peek()? {
@@ -908,30 +898,26 @@ pub(crate) fn read_json_value<'py, R: JsonSource<'py>>(src: &mut R) -> PyResult<
         }
         JsonKind::Bool => Ok(PyBool::new(py, src.next_bool()?).to_owned().into_any()),
         JsonKind::Number => src.next_number(),
-        JsonKind::String => Ok(src.next_str()?.into_any()),
+        JsonKind::String => Ok(src.next_py_str()?.into_any()),
         JsonKind::Array => {
             let list = PyList::empty(py);
-            let mut has = src.next_array()?;
-            while has {
+            src.for_each_array_item(|src| {
                 list.append(read_json_value(src)?)?;
-                has = src.array_step()?;
-            }
+                Ok(())
+            })?;
             Ok(list.into_any())
         }
         JsonKind::Object => {
             let dict = PyDict::new(py);
-            let mut key = src.next_object()?;
-            while let Some(raw_key) = key {
+            src.for_each_object_key(|key, src| {
                 let value = read_json_value(src)?;
-                dict.set_item(PyString::new(py, &raw_key), value)?;
-                key = src.next_key()?;
-            }
+                dict.set_item(PyString::new(py, key), value)?;
+                Ok(())
+            })?;
             Ok(dict.into_any())
         }
     }
 }
-
-// ---- helpers ----
 
 fn field_error(
     marshaler: &MessageMarshaler,

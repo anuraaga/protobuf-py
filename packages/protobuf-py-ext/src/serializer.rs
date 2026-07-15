@@ -471,10 +471,10 @@ impl FieldSerializer {
 pub(crate) struct SerializerField {
     /// The Python attribute name for the field (used in error messages and oneof lookup).
     pub(crate) py_attr: String,
-    /// The proto field name (JSON output key under `use_proto_field_name`).
+    /// The proto field name.
     pub(crate) name: Py<PyString>,
-    /// The JSON name (default JSON output key).
-    pub(crate) json_key: Py<PyString>,
+    /// The JSON name.
+    pub(crate) json_name: Py<PyString>,
     /// The field number.
     pub(crate) number: u32,
     /// The presence of the field.
@@ -528,7 +528,7 @@ impl MessageSerializer {
             marshaler_fields.push(SerializerField {
                 py_attr: field.local_name.extract::<String>(py)?,
                 name: field.name.clone_ref(py),
-                json_key: field.json_name.clone_ref(py),
+                json_name: field.json_name.clone_ref(py),
                 number: field.number,
                 presence: field.presence,
                 oneof: oneof_access,

@@ -1,6 +1,7 @@
 //! `ProtoJSON` serialization.
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use bytes::Bytes;
 use pyo3::{
     Bound, Py, PyAny, PyErr, PyResult, Python,
     exceptions::{PyOverflowError, PyTypeError, PyValueError},
@@ -21,15 +22,12 @@ use crate::{
     serializer::{FieldSerializer, FieldSerializerType, FieldSerializerValue, MessageSerializer},
 };
 
-// Integer range bounds (MIN inclusive, MAX exclusive), matching `_validate.py`.
 const INT32_MIN: i64 = -(1 << 31);
 const INT32_MAX: i64 = 1 << 31;
 const UINT32_MAX: i64 = 1 << 32;
-// float32 finite range from `_validate.py`.
 const FLOAT32_MAX: f64 = 3.402_823_466_385_288_6e38;
 const FLOAT32_MIN: f64 = -3.402_823_466_385_288_6e38;
 
-/// Options controlling JSON output.
 pub(crate) struct JsonOpts {
     pub(crate) always_emit_implicit: bool,
     pub(crate) print_enums_as_ints: bool,
@@ -50,7 +48,7 @@ impl MessageMarshaler {
         Ok(PyString::new(py, &sink.finish()).unbind())
     }
 
-    /// Writes a message as JSON, dispatching on its well-known-type kind.
+    /// Writes a message as JSON.
     pub(crate) fn write_json<S: JsonSink>(
         &self,
         py: Python<'_>,
@@ -97,7 +95,7 @@ impl MessageMarshaler {
             let key = if opts.use_proto_field_name {
                 field.name.bind(py)
             } else {
-                field.json_key.bind(py)
+                field.json_name.bind(py)
             };
             sink.py_key(key)?;
             field.serializer.write_json_value(py, &value, sink, opts)?;
@@ -160,7 +158,7 @@ impl FieldSerializer {
             FieldSerializerType::List { .. } => {
                 let list = value.cast::<PyList>()?;
                 sink.begin_array()?;
-                for item in list.iter() {
+                for item in list {
                     self.write_single_json_value(py, &item, sink, opts)?;
                 }
                 sink.end_array()?;
@@ -249,7 +247,7 @@ fn write_single_desc_value<S: JsonSink>(
     }
 }
 
-/// Reads a WKT int64 field, applying `_validate.py`-style int64 checks.
+/// Reads a WKT int64 field with validation.
 pub(crate) fn read_int64_attr(
     py: Python<'_>,
     message: &Bound<'_, NativeMessage>,
@@ -262,7 +260,7 @@ pub(crate) fn read_int64_attr(
         .map_err(|_| overflow_value(&value, "int64"))
 }
 
-/// Reads a WKT int32 field, applying `_validate.py`-style int32 checks.
+/// Reads a WKT int32 field with validation.
 pub(crate) fn read_int32_attr(
     py: Python<'_>,
     message: &Bound<'_, NativeMessage>,
@@ -283,11 +281,15 @@ pub(crate) fn write_message_json<S: JsonSink>(
 ) -> PyResult<()> {
     let expected_type = message_desc.get_python_type(py);
     if !value.is_instance(expected_type)? {
-        return Err(message_value_type_error(expected_type, value));
+        return Err(PyTypeError::new_err(format!(
+            "expected '{}', got {}",
+            message_desc.get_marshaler(py)?.type_name,
+            value.get_type()
+        )));
     }
-    let native = value.cast::<NativeMessage>()?;
-    let marshaler = message_desc.get_marshaler(py)?;
-    marshaler.write_json(py, native, sink, opts)
+    let value = value.cast::<NativeMessage>()?;
+    let marshaler = NativeMessage::get_marshaler(value)?;
+    marshaler.write_json(py, value, sink, opts)
 }
 
 fn write_enum_json<S: JsonSink>(
@@ -449,11 +451,11 @@ fn extract_ranged(value: &Bound<'_, PyAny>, min: i64, max: i64, ty: &str) -> PyR
     }
 }
 
-fn extract_bytes(value: &Bound<'_, PyAny>) -> PyResult<Vec<u8>> {
-    if let Ok(bytes) = value.cast::<PyBytes>() {
-        Ok(bytes.as_bytes().to_vec())
+fn extract_bytes(value: &Bound<'_, PyAny>) -> PyResult<Bytes> {
+    if let Ok(bytes) = value.extract::<Bytes>() {
+        Ok(bytes)
     } else if let Ok(bytearray) = value.cast::<PyByteArray>() {
-        Ok(bytearray.to_vec())
+        Ok(Bytes::from(bytearray.to_vec()))
     } else {
         Err(type_got("expected bytes", value))
     }
@@ -468,46 +470,4 @@ fn overflow_value(value: &Bound<'_, PyAny>, ty: &str) -> PyErr {
         Ok(s) => PyOverflowError::new_err(format!("value {s} out of range for {ty}")),
         Err(err) => err,
     }
-}
-
-fn message_value_type_error(expected_type: &Bound<'_, PyType>, value: &Bound<'_, PyAny>) -> PyErr {
-    let py = expected_type.py();
-    let constants = match Constants::get(py) {
-        Ok(constants) => constants,
-        Err(err) => return err,
-    };
-    let expected_name = expected_type
-        .getattr(&constants.desc)
-        .and_then(|desc| desc.getattr(&constants.type_name))
-        .and_then(|name| Ok(name.str()?.to_string()));
-    let expected_name = match expected_name {
-        Ok(name) => name,
-        Err(err) => return err,
-    };
-    // If the value is itself a message, report its type_name; else its type.
-    if let Ok(other_desc) = value
-        .getattr(&constants.desc)
-        .and_then(|desc| desc.getattr(&constants.type_name))
-    {
-        match other_desc.str() {
-            Ok(other) => PyTypeError::new_err(format!("expected '{expected_name}', got '{other}'")),
-            Err(err) => err,
-        }
-    } else {
-        PyTypeError::new_err(format!(
-            "expected '{expected_name}', got {}",
-            value.get_type()
-        ))
-    }
-}
-
-pub(crate) fn type_url_to_name(url: &str) -> PyResult<&str> {
-    let name = match url.rfind('/') {
-        Some(index) => &url[index + 1..],
-        None => url,
-    };
-    if name.is_empty() {
-        return Err(PyValueError::new_err(format!("invalid type url: {url}")));
-    }
-    Ok(name)
 }
