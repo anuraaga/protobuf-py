@@ -6,15 +6,13 @@ use pyo3::{
     Bound, Py, PyAny, PyErr, PyResult, Python,
     exceptions::{PyOverflowError, PyTypeError, PyValueError},
     types::{
-        PyAnyMethods as _, PyBool, PyByteArray, PyByteArrayMethods as _, PyBytes,
-        PyBytesMethods as _, PyDict, PyDictMethods as _, PyInt, PyList, PyListMethods as _,
-        PyString, PyStringMethods as _, PyType,
+        PyAnyMethods as _, PyBool, PyByteArray, PyByteArrayMethods as _, PyDict,
+        PyDictMethods as _, PyInt, PyList, PyListMethods as _, PyString, PyStringMethods as _,
     },
 };
 
 use crate::{
     attribute_access::AttributeAccess,
-    constants::Constants,
     descriptor::{DescEnum, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
     json_sink::{JsonSink, StringSink},
     marshaler::MessageMarshaler,
