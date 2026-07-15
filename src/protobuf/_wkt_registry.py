@@ -223,13 +223,10 @@ class WktAny:
         json_value = _message_to_json_value(unpacked, opts)
         # WKTs with a custom JSON representation (strings, arrays, null, etc.)
         # must be wrapped in a "value" field. Regular messages produce dicts
-        # whose fields are merged alongside "@type". FileDescriptorSet is matched
-        # only to attach its mixin; it has no custom representation, so it is
-        # inlined like any other message.
+        # whose fields are merged alongside "@type".
         if not isinstance(json_value, dict) or _has_custom_json(desc):
             return {"@type": message.type_url, "value": json_value}
-        json_value["@type"] = message.type_url
-        return json_value
+        return {"@type": message.type_url, **json_value}
 
     def from_json(self, msg: Message, json: JsonValue, opts: FromJsonOptions) -> bool:
         from ._from_json import _read_message  # noqa: PLC0415
@@ -457,15 +454,9 @@ def match_wkt(desc: DescMessage) -> WktMatch | None:
 
 
 def _has_custom_json(desc: DescMessage) -> bool:
-    """Whether a message type has a custom ProtoJSON representation.
-
-    Used by Any to decide between wrapping the embedded value in a "value"
-    field (custom representation) and inlining its fields alongside "@type"
-    (regular message). FileDescriptorSet is matched by match_wkt only to attach
-    its mixin; it has no custom representation and is treated as a regular
-    message here.
-    """
+    """Whether a message type has a custom ProtoJSON representation."""
     wkt = match_wkt(desc)
+    # FileDescriptorSet is the only WKT we have without a custom JSON representation.
     return wkt is not None and not isinstance(wkt, WktFileDescriptorSet)
 
 
