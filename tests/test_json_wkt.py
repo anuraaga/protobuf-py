@@ -26,6 +26,8 @@ from protobuf.wkt import (
     DoubleValue,
     Duration,
     FieldMask,
+    FileDescriptorProto,
+    FileDescriptorSet,
     FloatValue,
     Int32Value,
     Int64Value,
@@ -303,6 +305,17 @@ def test_list_value(message: Message, expected: Any) -> None:
             {"@type": "type.googleapis.com/google.protobuf.BoolValue", "value": True},
             id="BoolValue",
         ),
+        # FileDescriptorSet is matched as a WKT only to attach its mixin; it has
+        # no custom JSON representation, so inside Any it is inlined like any
+        # other message (fields alongside "@type"), not wrapped in "value".
+        pytest.param(
+            FileDescriptorSet(file=[FileDescriptorProto(name="test.proto")]),
+            {
+                "@type": "type.googleapis.com/google.protobuf.FileDescriptorSet",
+                "file": [{"name": "test.proto"}],
+            },
+            id="FileDescriptorSet",
+        ),
     ],
 )
 def test_any(message: Message, expected: dict[str, Any]) -> None:
@@ -356,6 +369,20 @@ def test_duration_from_json_error(json_str: str, error_type: type[Exception]) ->
 
 
 @pytest.mark.parametrize(
+    ("json_str", "expected"),
+    [
+        # An empty fractional part is accepted by the reference protobuf JSON
+        # parser (google.protobuf 7.35.1 parses "5.s" as seconds=5, nanos=0).
+        ('"5.s"', Duration(seconds=5)),
+        ('"-5.s"', Duration(seconds=-5)),
+        ('"5.5s"', Duration(seconds=5, nanos=500_000_000)),
+    ],
+)
+def test_duration_from_json_empty_fraction(json_str: str, expected: Duration) -> None:
+    assert Duration.from_json(json_str) == expected
+
+
+@pytest.mark.parametrize(
     ("seconds", "nanos", "match"),
     [
         (253_402_300_800, 0, "timestamp seconds out of range"),
@@ -376,6 +403,11 @@ def test_timestamp_to_json_error(seconds: int, nanos: int, match: str) -> None:
         ('"2025-01-27t11:42:15Z"', ValueError, "invalid RFC 3339"),
         ('"2025-01-27 11:42:15Z"', ValueError, "invalid RFC 3339"),
         ('"2025-13-01T00:00:00Z"', ValueError, "invalid RFC 3339"),
+        (
+            '"9999-12-31T23:59:59-01:00"',
+            ValueError,
+            "must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive",
+        ),
     ],
 )
 def test_timestamp_from_json_error(

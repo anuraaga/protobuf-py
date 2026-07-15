@@ -19,7 +19,7 @@ use crate::{
     parser::{FromBinaryOpts, MessageParser},
     reverse_buffer::ReverseBuffer,
     serializer::{MessageSerializer, ToBinaryOpts},
-    wkt::WktKind,
+    wkt_registry::WktKind,
 };
 
 #[pyclass(frozen)]
@@ -64,8 +64,8 @@ pub(crate) struct MessageMarshalerInner {
     pub(crate) python_type: Py<PyType>,
 
     /// Well-known-type classification for JSON marshaling (eager; `None` for
-    /// ordinary messages).
-    pub(crate) wkt: WktKind,
+    /// ordinary messages, so they pay only a null pointer).
+    pub(crate) wkt: Option<Box<WktKind>>,
 
     /// JSON key lookup for parsing: maps both the proto field name and the JSON
     /// name to the field number.
@@ -106,7 +106,7 @@ impl MessageMarshaler {
         let fields = message_fields(py, message_desc, constants)?;
         let parser = MessageParser::new(py, &fields, python_type, constants);
         let serializer = MessageSerializer::new(py, message_desc, python_type, &fields, constants)?;
-        let wkt = WktKind::detect(py, message_desc, &fields, constants)?;
+        let wkt = WktKind::detect(py, message_desc, &fields, &serializer, constants)?;
         // Map both the proto name and JSON name of every field to its number
         // for parse-side key lookup. Cheap, pure-Rust, O(fields).
         let mut json_names = HashMap::with_capacity(fields.len() * 2);

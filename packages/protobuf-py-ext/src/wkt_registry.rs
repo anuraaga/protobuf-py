@@ -1,0 +1,983 @@
+//! Central registry for well-known types to handle special JSON marshaling.
+//! Closely mirrors `_wkt_registry.py`.
+
+use std::collections::HashMap;
+
+use buffa::json_helpers::wkt as buffa_wkt;
+use bytes::Bytes;
+use pyo3::{
+    Bound, IntoPyObject as _, IntoPyObjectExt as _, Py, PyAny, PyResult, Python,
+    exceptions::{PyTypeError, PyValueError},
+    types::{
+        PyAnyMethods as _, PyBool, PyDict, PyDictMethods as _, PyFloat, PyList, PyListMethods as _,
+        PyString, PyStringMethods as _, PyType,
+    },
+};
+
+use crate::{
+    attribute_access::AttributeAccess,
+    constants::Constants,
+    descriptor::{DescField, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
+    json_parse::{FromJsonOpts, message_type_name, read_json_value, read_message, read_scalar},
+    json_serialize::{
+        JsonOpts, read_int32_attr, read_int64_attr, type_url_to_name, write_message_json,
+        write_scalar_json,
+    },
+    json_sink::JsonSink,
+    json_source::{JsonKind, JsonSource, PyTreeSource},
+    marshaler::MessageMarshaler,
+    nativemessage::NativeMessage,
+    oneof::Oneof,
+    serializer::MessageSerializer,
+};
+
+/// `google.protobuf.Timestamp`.
+pub(crate) struct WktTimestamp {
+    seconds: AttributeAccess,
+    nanos: AttributeAccess,
+}
+
+impl WktTimestamp {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        _opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let sec = read_int64_attr(py, message, &self.seconds)?;
+        let nan = read_int32_attr(py, message, &self.nanos)?;
+        sink.str(&timestamp_to_rfc3339(sec, nan)?)
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        _opts: &FromJsonOpts,
+        _depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        let text = expect_wkt_string(py, marshaler, src)?;
+        let (sec, nan) = parse_timestamp(&message_type_name(py, marshaler)?, &text)?;
+        set_seconds_nanos(py, message, &self.seconds, &self.nanos, sec, nan)
+    }
+}
+
+/// `google.protobuf.Duration`.
+pub(crate) struct WktDuration {
+    seconds: AttributeAccess,
+    nanos: AttributeAccess,
+}
+
+impl WktDuration {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        _opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let sec = read_int64_attr(py, message, &self.seconds)?;
+        let nan = read_int32_attr(py, message, &self.nanos)?;
+        sink.str(&duration_to_json(sec, nan)?)
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        _opts: &FromJsonOpts,
+        _depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        let text = expect_wkt_string(py, marshaler, src)?;
+        let (sec, nan) = parse_duration(&message_type_name(py, marshaler)?, &text)?;
+        set_seconds_nanos(py, message, &self.seconds, &self.nanos, sec, nan)
+    }
+}
+
+/// `google.protobuf.Any` (registry accessed via Python).
+pub(crate) struct WktAny {
+    type_url: AttributeAccess,
+    value: AttributeAccess,
+}
+
+impl WktAny {
+    fn write_json<S: JsonSink>(
+        &self,
+        marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let constants = &marshaler.constants;
+        let type_url_py = self.type_url.get(py, message.as_any())?;
+        let type_url = type_url_py.extract::<&str>()?;
+        if type_url.is_empty() {
+            sink.begin_object()?;
+            sink.end_object()?;
+            return Ok(());
+        }
+        let Some(registry) = &opts.registry else {
+            return Err(PyValueError::new_err(format!(
+                "any \"{type_url}\" is not in the type registry"
+            )));
+        };
+        let registry = registry.bind(py);
+        let type_name = type_url_to_name(type_url)?;
+        let desc = registry.call_method1(constants.message.bind(py), (type_name,))?;
+        if desc.is_none() {
+            return Err(PyValueError::new_err(format!(
+                "any: \"{type_url}\" is not in the type registry"
+            )));
+        }
+        let inner_type_obj = desc.getattr(&constants.type_)?;
+        let inner_type = inner_type_obj.cast::<PyType>()?;
+        let inner_marshaler = inner_type
+            .getattr(&constants.ext_marshaler)?
+            .cast_into::<MessageMarshaler>()?
+            .get()
+            .clone();
+
+        let value_bytes: Vec<u8> = self.value.get(py, message.as_any())?.extract()?;
+        let inner_msg = inner_marshaler.new_empty_message(py, inner_type)?;
+        inner_marshaler.merge_from_binary(py, &inner_msg, Bytes::from(value_bytes), false)?;
+
+        sink.begin_object()?;
+        if inner_marshaler.wkt.is_none() {
+            // Regular message: inline its fields, then `@type` last.
+            inner_marshaler.write_message_fields(py, &inner_msg, sink, opts)?;
+            sink.key("@type")?;
+            sink.str(type_url)?;
+        } else {
+            // Well-known type with a custom JSON representation: wrap in `value`.
+            sink.key("@type")?;
+            sink.str(type_url)?;
+            sink.key("value")?;
+            inner_marshaler.write_json(py, &inner_msg, sink, opts)?;
+        }
+        sink.end_object()?;
+        Ok(())
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        opts: &FromJsonOpts,
+        _depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        let type_name = message_type_name(py, marshaler)?;
+        // Buffer the subtree so `@type` may appear in any position.
+        let tree = read_json_value(src)?;
+        let Ok(dict) = tree.cast::<PyDict>() else {
+            return Err(PyTypeError::new_err(format!(
+                "cannot decode {type_name} from JSON: {}",
+                tree.str()?
+            )));
+        };
+        if dict.is_empty() {
+            return Ok(());
+        }
+        let type_url_obj = dict.get_item("@type")?;
+        let type_url = match &type_url_obj {
+            Some(value) if value.is_instance_of::<PyString>() => {
+                value.cast::<PyString>()?.to_str()?.to_owned()
+            }
+            _ => {
+                return Err(PyValueError::new_err(format!(
+                    "cannot decode {type_name} from JSON: {}, @type is invalid: {}",
+                    dict.str()?,
+                    type_url_obj.map_or_else(
+                        || "None".to_string(),
+                        |v| v.str().map(|s| s.to_string()).unwrap_or_default()
+                    )
+                )));
+            }
+        };
+        if type_url.is_empty() {
+            return Err(PyValueError::new_err(format!(
+                "cannot decode {type_name} from JSON: {}, @type is invalid: {type_url}",
+                dict.str()?
+            )));
+        }
+        let inner_type_name = match type_url.rfind('/') {
+            Some(index) => &type_url[index + 1..],
+            None => &type_url,
+        };
+        let registry = opts.registry.as_ref().map(|registry| registry.bind(py));
+        let desc = match &registry {
+            Some(registry) => {
+                registry.call_method1(&marshaler.constants.message, (inner_type_name,))?
+            }
+            None => py.None().into_bound(py),
+        };
+        if desc.is_none() {
+            return Err(PyValueError::new_err(format!(
+                "cannot decode {type_name} from JSON: {type_url} is not in the type registry"
+            )));
+        }
+        let inner_type = desc.getattr(&marshaler.constants.type_)?;
+        let inner_type = inner_type.cast_into::<PyType>()?;
+        let inner_marshaler_obj = inner_type.getattr(&marshaler.constants.ext_marshaler)?;
+        let inner_marshaler = inner_marshaler_obj
+            .cast::<MessageMarshaler>()?
+            .get()
+            .clone();
+        let inner_msg = inner_marshaler.new_empty_message(py, &inner_type)?;
+
+        let is_wkt = inner_marshaler.wkt.is_some();
+        if is_wkt && dict.contains("value")? {
+            let value = dict
+                .get_item("value")?
+                .unwrap_or_else(|| py.None().into_bound(py));
+            let mut sub = PyTreeSource::new(py, value);
+            read_message(&inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
+        } else {
+            let copy = dict.copy()?;
+            copy.del_item("@type")?;
+            let mut sub = PyTreeSource::new(py, copy.into_any());
+            read_message(&inner_marshaler, &inner_msg, &mut sub, opts, 1)?;
+        }
+
+        // Pack natively into the Any's type_url/value fields.
+        let packed_url = format!(
+            "type.googleapis.com/{}",
+            message_type_name(py, &inner_marshaler)?
+        );
+        let packed_value = inner_marshaler.to_binary(py, &inner_msg, true)?;
+        self.type_url
+            .set(message.as_any(), &PyString::new(py, &packed_url).into_any())?;
+        self.value.set(message.as_any(), packed_value.as_any())?;
+        Ok(())
+    }
+}
+
+/// `google.protobuf.FieldMask`.
+pub(crate) struct WktFieldMask {
+    paths: AttributeAccess,
+}
+
+impl WktFieldMask {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        _opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let paths = self
+            .paths
+            .get(py, message.as_any())?
+            .cast_into::<PyList>()?;
+        if paths.is_empty() {
+            return sink.str("");
+        }
+        let mut out = String::new();
+        for path in paths.iter() {
+            let path = path.extract::<&str>()?;
+            if !buffa_wkt::field_mask_path_round_trips(path) {
+                return Err(PyValueError::new_err(format!(
+                    "invalid FieldMask path: lowerCamelCase of {path} is irreversible"
+                )));
+            }
+            out.push_str(&buffa_wkt::snake_to_camel(path));
+            out.push(',');
+        }
+        // Drop trailing comma.
+        sink.str(&out[..out.len() - 1])
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        _opts: &FromJsonOpts,
+        _depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        let text = expect_wkt_string(py, marshaler, src)?;
+        if text.is_empty() {
+            return Ok(());
+        }
+        let paths_obj = self.paths.get(py, message.as_any())?;
+        let paths = paths_obj.cast::<PyList>()?;
+        for part in text.split(',') {
+            if part.contains('_') {
+                return Err(PyValueError::new_err(format!(
+                    "cannot decode {} from JSON: path names must be lowerCamelCase",
+                    message_type_name(py, marshaler)?
+                )));
+            }
+            paths.append(PyString::new(py, &buffa_wkt::camel_to_snake(part)))?;
+        }
+        Ok(())
+    }
+}
+
+/// `google.protobuf.Struct`; `value` is the `google.protobuf.Value` element.
+pub(crate) struct WktStruct {
+    fields: AttributeAccess,
+    value: DescMessage,
+}
+
+impl WktStruct {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let map = self
+            .fields
+            .get(py, message.as_any())?
+            .cast_into::<PyDict>()?;
+        sink.begin_object()?;
+        for (key, entry) in map {
+            sink.py_key(key.cast::<PyString>()?)?;
+            write_message_json(py, &self.value, &entry, sink, opts)?;
+        }
+        sink.end_object()?;
+        Ok(())
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        opts: &FromJsonOpts,
+        depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        if src.peek()? != JsonKind::Object {
+            let json = read_json_value(src)?;
+            return Err(PyTypeError::new_err(format!(
+                "cannot decode {} from JSON: {}",
+                message_type_name(py, marshaler)?,
+                json.str()?
+            )));
+        }
+        let value_marshaler = self.value.get_marshaler(py)?;
+        let dict_obj = self.fields.get(py, message.as_any())?;
+        let dict = dict_obj.cast::<PyDict>()?;
+        let mut key = src.next_object()?;
+        while let Some(raw_key) = key {
+            let value_msg =
+                value_marshaler.new_empty_message(py, self.value.get_python_type(py))?;
+            read_message(value_marshaler, &value_msg, src, opts, depth + 1)?;
+            dict.set_item(PyString::new(py, &raw_key), value_msg)?;
+            key = src.next_key()?;
+        }
+        Ok(())
+    }
+}
+
+/// `google.protobuf.ListValue`; `element` is the `google.protobuf.Value`.
+pub(crate) struct WktListValue {
+    values: AttributeAccess,
+    element: DescMessage,
+}
+
+impl WktListValue {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let values = self
+            .values
+            .get(py, message.as_any())?
+            .cast_into::<PyList>()?;
+        sink.begin_array()?;
+        for item in values.iter() {
+            write_message_json(py, &self.element, &item, sink, opts)?;
+        }
+        sink.end_array()?;
+        Ok(())
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        opts: &FromJsonOpts,
+        depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        if src.peek()? != JsonKind::Array {
+            let json = read_json_value(src)?;
+            return Err(PyTypeError::new_err(format!(
+                "cannot decode {} from JSON: {}",
+                message_type_name(py, marshaler)?,
+                json.str()?
+            )));
+        }
+        let element_marshaler = self.element.get_marshaler(py)?;
+        let list_obj = self.values.get(py, message.as_any())?;
+        let list = list_obj.cast::<PyList>()?;
+        let mut has = src.next_array()?;
+        while has {
+            let value_msg =
+                element_marshaler.new_empty_message(py, self.element.get_python_type(py))?;
+            read_message(element_marshaler, &value_msg, src, opts, depth + 1)?;
+            list.append(value_msg)?;
+            has = src.array_step()?;
+        }
+        Ok(())
+    }
+}
+
+/// `google.protobuf.Value`. Carries the shared `kind` oneof accessor, the local
+/// name of each member (for constructing the `Oneof` on parse), the `NullValue`
+/// zero, and the nested `Struct`/`ListValue` descriptors.
+pub(crate) struct WktValue {
+    kind: AttributeAccess,
+    null_name: Py<PyString>,
+    number_name: Py<PyString>,
+    string_name: Py<PyString>,
+    bool_name: Py<PyString>,
+    struct_name: Py<PyString>,
+    list_name: Py<PyString>,
+    null_zero: Py<PyAny>,
+    struct_message: DescMessage,
+    list_message: DescMessage,
+}
+
+impl WktValue {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let Ok(oneof) = self.kind.get(py, message.as_any())?.cast_into::<Oneof>() else {
+            return Err(PyValueError::new_err(
+                "value must have exactly one field set",
+            ));
+        };
+        let oneof = oneof.get();
+        let field = oneof.field.bind(py).cast::<PyString>()?;
+        let kind_value = oneof.value.bind(py);
+        match field.to_str()? {
+            "null_value" => sink.null(),
+            "number_value" => {
+                let number = kind_value.extract::<f64>()?;
+                if !number.is_finite() {
+                    return Err(PyValueError::new_err("value cannot be NaN or Infinity"));
+                }
+                sink.py_number(kind_value)
+            }
+            "string_value" => sink.py_str(kind_value.cast::<PyString>()?),
+            "bool_value" => sink.bool(kind_value.extract::<bool>()?),
+            "struct_value" => write_message_json(py, &self.struct_message, kind_value, sink, opts),
+            "list_value" => write_message_json(py, &self.list_message, kind_value, sink, opts),
+            _ => Err(PyValueError::new_err(
+                "value must have exactly one field set",
+            )),
+        }
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        opts: &FromJsonOpts,
+        depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        let set_kind = |local: &Py<PyString>, v: &Bound<'py, PyAny>| -> PyResult<()> {
+            let oneof = Oneof::new(local.bind(py), v).into_bound_py_any(py)?;
+            self.kind.set(message.as_any(), &oneof)
+        };
+        match src.peek()? {
+            JsonKind::Null => {
+                src.next_null()?;
+                set_kind(&self.null_name, &self.null_zero.bind(py).clone())
+            }
+            JsonKind::Bool => set_kind(
+                &self.bool_name,
+                &PyBool::new(py, src.next_bool()?).to_owned().into_any(),
+            ),
+            JsonKind::Number => {
+                let number = src.next_float()?;
+                set_kind(&self.number_name, &PyFloat::new(py, number).into_any())
+            }
+            JsonKind::String => {
+                let string = src.next_str()?;
+                set_kind(&self.string_name, &string.into_any())
+            }
+            JsonKind::Array => {
+                let desc = &self.list_message;
+                let inner = desc.get_marshaler(py)?;
+                let list_msg = inner.new_empty_message(py, desc.get_python_type(py))?;
+                read_message(inner, &list_msg, src, opts, depth + 1)?;
+                set_kind(&self.list_name, &list_msg.into_any())
+            }
+            JsonKind::Object => {
+                let desc = &self.struct_message;
+                let inner = desc.get_marshaler(py)?;
+                let struct_msg = inner.new_empty_message(py, desc.get_python_type(py))?;
+                read_message(inner, &struct_msg, src, opts, depth + 1)?;
+                set_kind(&self.struct_name, &struct_msg.into_any())
+            }
+        }
+    }
+}
+
+/// A wrapper type (exactly one scalar field named `value`).
+pub(crate) struct WktWrapper {
+    field: AttributeAccess,
+    scalar: ScalarType,
+    /// Proto field name, for scalar-read error context.
+    name: Py<PyString>,
+}
+
+impl WktWrapper {
+    fn write_json<S: JsonSink>(
+        &self,
+        _marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        _opts: &JsonOpts,
+    ) -> PyResult<()> {
+        let value = self.field.get(py, message.as_any())?;
+        write_scalar_json(self.scalar, &value, sink)
+    }
+
+    fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        _opts: &FromJsonOpts,
+        _depth: usize,
+    ) -> PyResult<()> {
+        let py = src.py();
+        if src.peek()? == JsonKind::Null {
+            src.next_null()?;
+            self.field
+                .set(message.as_any(), &self.scalar.zero_value(py).into_bound(py))?;
+            return Ok(());
+        }
+        let value = read_scalar(marshaler, self.name.bind(py), src, self.scalar)?;
+        self.field.set(message.as_any(), &value)
+    }
+}
+
+// ---- WktKind: classification + dispatch (parallels WktMatch + match_wkt) ----
+
+/// Well-known-type classification with pre-resolved accessors. Ordinary
+/// (non-WKT) messages are `None` on the marshaler and never reach here.
+pub(crate) enum WktKind {
+    Timestamp(WktTimestamp),
+    Duration(WktDuration),
+    Any(WktAny),
+    FieldMask(WktFieldMask),
+    Struct(WktStruct),
+    ListValue(WktListValue),
+    Value(WktValue),
+    Wrapper(WktWrapper),
+}
+
+impl WktKind {
+    /// Serializes the message, delegating to the active variant.
+    pub(crate) fn write_json<S: JsonSink>(
+        &self,
+        marshaler: &MessageMarshaler,
+        py: Python<'_>,
+        message: &Bound<'_, NativeMessage>,
+        sink: &mut S,
+        opts: &JsonOpts,
+    ) -> PyResult<()> {
+        match self {
+            WktKind::Timestamp(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::Duration(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::Any(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::FieldMask(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::Struct(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::ListValue(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::Value(w) => w.write_json(marshaler, py, message, sink, opts),
+            WktKind::Wrapper(w) => w.write_json(marshaler, py, message, sink, opts),
+        }
+    }
+
+    /// Parses the message, delegating to the active variant.
+    pub(crate) fn read_json<'py, R: JsonSource<'py>>(
+        &self,
+        marshaler: &MessageMarshaler,
+        message: &Bound<'py, NativeMessage>,
+        src: &mut R,
+        opts: &FromJsonOpts,
+        depth: usize,
+    ) -> PyResult<()> {
+        match self {
+            WktKind::Timestamp(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::Duration(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::Any(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::FieldMask(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::Struct(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::ListValue(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::Value(w) => w.read_json(marshaler, message, src, opts, depth),
+            WktKind::Wrapper(w) => w.read_json(marshaler, message, src, opts, depth),
+        }
+    }
+
+    /// Classifies a message type, returning `None` for ordinary messages. The
+    /// serializer supplies the per-field accessors to clone into the variant.
+    pub(crate) fn detect(
+        py: Python<'_>,
+        message_desc: &Bound<'_, PyAny>,
+        fields: &[DescField],
+        serializer: &MessageSerializer,
+        constants: &Constants,
+    ) -> PyResult<Option<Box<WktKind>>> {
+        let type_name_any = message_desc.getattr(&constants.type_name)?;
+        let type_name = type_name_any.cast::<PyString>()?;
+        let type_name = type_name.to_str()?;
+        if !type_name.starts_with("google.protobuf.") {
+            return Ok(None);
+        }
+        let file_name_any = message_desc
+            .getattr(&constants.file)?
+            .getattr(&constants.name)?;
+        if !file_name_any
+            .cast::<PyString>()?
+            .to_str()?
+            .starts_with("google/protobuf/")
+        {
+            return Ok(None);
+        }
+
+        // Proto field name -> declaration-order index.
+        let mut by_name: HashMap<String, usize> = HashMap::with_capacity(fields.len());
+        for (index, field) in fields.iter().enumerate() {
+            by_name.insert(field.name.bind(py).to_str()?.to_owned(), index);
+        }
+
+        // Clones the accessor for field index `i`.
+        let attr = |i: usize| serializer.fields()[i].attr.clone_ref(py);
+
+        let kind = match type_name {
+            "google.protobuf.Timestamp" => {
+                timestamp_duration_fields(fields, &by_name).map(|(s, n)| {
+                    WktKind::Timestamp(WktTimestamp {
+                        seconds: attr(s),
+                        nanos: attr(n),
+                    })
+                })
+            }
+            "google.protobuf.Duration" => {
+                timestamp_duration_fields(fields, &by_name).map(|(s, n)| {
+                    WktKind::Duration(WktDuration {
+                        seconds: attr(s),
+                        nanos: attr(n),
+                    })
+                })
+            }
+            "google.protobuf.Any" => match_any(fields, &by_name).map(|(url, value)| {
+                WktKind::Any(WktAny {
+                    type_url: attr(url),
+                    value: attr(value),
+                })
+            }),
+            "google.protobuf.FieldMask" => match_field_mask(fields, &by_name)
+                .map(|paths| WktKind::FieldMask(WktFieldMask { paths: attr(paths) })),
+            "google.protobuf.Struct" => match_struct(fields, &by_name).map(|fields_idx| {
+                WktKind::Struct(WktStruct {
+                    fields: attr(fields_idx),
+                    value: message_of(&fields[fields_idx].value),
+                })
+            }),
+            "google.protobuf.ListValue" => match_list_value(fields, &by_name).map(|values| {
+                WktKind::ListValue(WktListValue {
+                    values: attr(values),
+                    element: message_of(&fields[values].value),
+                })
+            }),
+            "google.protobuf.Value" => match_value(py, fields, serializer, &by_name),
+            _ => match_wrapper(fields, &by_name).map(|scalar| {
+                WktKind::Wrapper(WktWrapper {
+                    field: attr(0),
+                    scalar,
+                    name: fields[0].name.clone_ref(py),
+                })
+            }),
+        };
+        Ok(kind.map(Box::new))
+    }
+}
+
+// ---- Structural matchers (parallel the `_match_*` helpers) ----
+
+/// Extracts the nested message descriptor from a singular/list/map value that is
+/// known (by prior shape check) to be message-typed.
+fn message_of(value: &DescFieldValue) -> DescMessage {
+    match value {
+        DescFieldValue::Message { message, .. }
+        | DescFieldValue::List {
+            element: DescSingleValue::Message { message, .. },
+            ..
+        }
+        | DescFieldValue::Map {
+            value: DescSingleValue::Message { message, .. },
+            ..
+        } => message.clone(),
+        _ => unreachable!("caller verified this field is message-typed"),
+    }
+}
+
+fn idx(by_name: &HashMap<String, usize>, name: &str) -> Option<usize> {
+    by_name.get(name).copied()
+}
+
+fn is_scalar(value: &DescFieldValue, want: ScalarType) -> bool {
+    matches!(value, DescFieldValue::Scalar { scalar_type, .. } if *scalar_type == want)
+}
+
+fn is_enum(value: &DescFieldValue) -> bool {
+    matches!(value, DescFieldValue::Enum { .. })
+}
+
+fn is_message(value: &DescFieldValue) -> bool {
+    matches!(value, DescFieldValue::Message { .. })
+}
+
+fn is_list_scalar(value: &DescFieldValue, want: ScalarType) -> bool {
+    matches!(value, DescFieldValue::List { element: DescSingleValue::Scalar(t), .. } if *t == want)
+}
+
+fn is_list_message(value: &DescFieldValue) -> bool {
+    matches!(
+        value,
+        DescFieldValue::List {
+            element: DescSingleValue::Message { .. },
+            ..
+        }
+    )
+}
+
+fn is_map_key(value: &DescFieldValue, want: ScalarType) -> bool {
+    matches!(value, DescFieldValue::Map { key_type, .. } if *key_type == want)
+}
+
+/// Timestamp/Duration share the same shape: int64 `seconds` + int32 `nanos`.
+fn timestamp_duration_fields(
+    fields: &[DescField],
+    by_name: &HashMap<String, usize>,
+) -> Option<(usize, usize)> {
+    let seconds = idx(by_name, "seconds")?;
+    let nanos = idx(by_name, "nanos")?;
+    (is_scalar(&fields[seconds].value, ScalarType::Int64)
+        && is_scalar(&fields[nanos].value, ScalarType::Int32))
+    .then_some((seconds, nanos))
+}
+
+fn match_any(fields: &[DescField], by_name: &HashMap<String, usize>) -> Option<(usize, usize)> {
+    let type_url = idx(by_name, "type_url")?;
+    let value = idx(by_name, "value")?;
+    (is_scalar(&fields[type_url].value, ScalarType::String)
+        && is_scalar(&fields[value].value, ScalarType::Bytes))
+    .then_some((type_url, value))
+}
+
+fn match_field_mask(fields: &[DescField], by_name: &HashMap<String, usize>) -> Option<usize> {
+    let paths = idx(by_name, "paths")?;
+    is_list_scalar(&fields[paths].value, ScalarType::String).then_some(paths)
+}
+
+fn match_struct(fields: &[DescField], by_name: &HashMap<String, usize>) -> Option<usize> {
+    let fields_idx = idx(by_name, "fields")?;
+    is_map_key(&fields[fields_idx].value, ScalarType::String).then_some(fields_idx)
+}
+
+fn match_list_value(fields: &[DescField], by_name: &HashMap<String, usize>) -> Option<usize> {
+    let values = idx(by_name, "values")?;
+    is_list_message(&fields[values].value).then_some(values)
+}
+
+fn match_value(
+    py: Python<'_>,
+    fields: &[DescField],
+    serializer: &MessageSerializer,
+    by_name: &HashMap<String, usize>,
+) -> Option<WktKind> {
+    let (
+        Some(null_value),
+        Some(number_value),
+        Some(string_value),
+        Some(bool_value),
+        Some(struct_value),
+        Some(list_value),
+    ) = (
+        idx(by_name, "null_value"),
+        idx(by_name, "number_value"),
+        idx(by_name, "string_value"),
+        idx(by_name, "bool_value"),
+        idx(by_name, "struct_value"),
+        idx(by_name, "list_value"),
+    )
+    else {
+        return None;
+    };
+    if !(is_enum(&fields[null_value].value)
+        && is_scalar(&fields[number_value].value, ScalarType::Double)
+        && is_scalar(&fields[string_value].value, ScalarType::String)
+        && is_scalar(&fields[bool_value].value, ScalarType::Bool)
+        && is_message(&fields[struct_value].value)
+        && is_message(&fields[list_value].value))
+    {
+        return None;
+    }
+    let null_zero = match &fields[null_value].value {
+        DescFieldValue::Enum { enum_, .. } => enum_.zero_value.clone_ref(py),
+        _ => return None,
+    };
+    // All `kind` members share the oneof accessor stored on each field.
+    let kind = serializer.fields()[null_value]
+        .oneof
+        .as_ref()?
+        .clone_ref(py);
+    let local = |i: usize| fields[i].local_name.clone_ref(py);
+    Some(WktKind::Value(WktValue {
+        kind,
+        null_name: local(null_value),
+        number_name: local(number_value),
+        string_name: local(string_value),
+        bool_name: local(bool_value),
+        struct_name: local(struct_value),
+        list_name: local(list_value),
+        null_zero,
+        struct_message: message_of(&fields[struct_value].value),
+        list_message: message_of(&fields[list_value].value),
+    }))
+}
+
+fn match_wrapper(fields: &[DescField], by_name: &HashMap<String, usize>) -> Option<ScalarType> {
+    // Structural fallthrough: exactly one scalar field named `value`.
+    if fields.len() != 1 || idx(by_name, "value") != Some(0) {
+        return None;
+    }
+    match &fields[0].value {
+        DescFieldValue::Scalar { scalar_type, .. } => Some(*scalar_type),
+        _ => None,
+    }
+}
+
+// ---- Shared marshal helpers ----
+
+fn expect_wkt_string<'py, R: JsonSource<'py>>(
+    py: Python<'py>,
+    marshaler: &MessageMarshaler,
+    src: &mut R,
+) -> PyResult<String> {
+    if src.peek()? != JsonKind::String {
+        let value = read_json_value(src)?;
+        return Err(PyTypeError::new_err(format!(
+            "cannot decode {} from JSON: {}",
+            message_type_name(py, marshaler)?,
+            value.str()?
+        )));
+    }
+    src.next_string()
+}
+
+fn set_seconds_nanos<'py>(
+    py: Python<'py>,
+    message: &Bound<'py, NativeMessage>,
+    seconds_attr: &AttributeAccess,
+    nanos_attr: &AttributeAccess,
+    seconds: i64,
+    nanos: i32,
+) -> PyResult<()> {
+    seconds_attr.set(message.as_any(), &seconds.into_pyobject(py)?.into_any())?;
+    nanos_attr.set(message.as_any(), &nanos.into_pyobject(py)?.into_any())?;
+    Ok(())
+}
+
+// ---- Low-level Timestamp/Duration formatting (buffa::json_helpers::wkt) ----
+//
+// The shared civil-date math, RFC 3339 / decimal-seconds grammars, and bounds
+// live in `buffa_wkt`. These wrappers only re-clothe buffa's `&'static str`
+// errors in the pure-Python-parity messages the tests pin. FieldMask uses
+// buffa's `snake_to_camel`/`camel_to_snake`/`field_mask_path_round_trips`
+// directly (see `WktFieldMask`).
+
+// Seconds/duration bounds come from `buffa_wkt` (MIN/MAX_TIMESTAMP_SECS,
+// MAX_DURATION_SECS). This one is only for our own validation messages, which
+// must stay byte-identical to the pure-Python text.
+const NANOS_PER_SECOND_MAX: i32 = 999_999_999;
+
+/// Formats a Timestamp as RFC 3339, matching `WktTimestamp.to_json_value`. The
+/// range checks are ours (not buffa's) so the error text matches `_validate.py`.
+fn timestamp_to_rfc3339(seconds: i64, nanos: i32) -> PyResult<String> {
+    if !(buffa_wkt::MIN_TIMESTAMP_SECS..=buffa_wkt::MAX_TIMESTAMP_SECS).contains(&seconds) {
+        return Err(PyValueError::new_err("timestamp seconds out of range"));
+    }
+    if !(0..=NANOS_PER_SECOND_MAX).contains(&nanos) {
+        return Err(PyValueError::new_err("timestamp nanos out of range"));
+    }
+    buffa_wkt::fmt_timestamp(seconds, nanos).map_err(PyValueError::new_err)
+}
+
+/// Formats a Duration, matching `WktDuration.to_json_value`. The range/sign
+/// checks are ours so the error text matches `_validate.py`.
+fn duration_to_json(seconds: i64, nanos: i32) -> PyResult<String> {
+    if !(-buffa_wkt::MAX_DURATION_SECS..=buffa_wkt::MAX_DURATION_SECS).contains(&seconds) {
+        return Err(PyValueError::new_err("duration seconds out of range"));
+    }
+    if !(-NANOS_PER_SECOND_MAX..=NANOS_PER_SECOND_MAX).contains(&nanos) {
+        return Err(PyValueError::new_err("duration nanos out of range"));
+    }
+    if (seconds > 0 && nanos < 0) || (seconds < 0 && nanos > 0) {
+        return Err(PyValueError::new_err(
+            "duration seconds and nanos have different signs",
+        ));
+    }
+    buffa_wkt::fmt_duration(seconds, nanos).map_err(PyValueError::new_err)
+}
+
+/// Parses an RFC 3339 timestamp into (seconds, nanos), matching
+/// `WktTimestamp.from_json`. `type_name` is used in the error message.
+fn parse_timestamp(type_name: &str, text: &str) -> PyResult<(i64, i32)> {
+    buffa_wkt::parse_timestamp(text).map_err(|err| {
+        // buffa's post-offset range failure maps to the pure-Python range
+        // message; every other (format/date) failure is "invalid RFC 3339
+        // string". Matched by prefix so a reworded buffa suffix still maps;
+        // `test_timestamp_from_json_error` pins this prefix so we catch a
+        // buffa rename (a valid-but-out-of-range string would silently become
+        // "invalid RFC 3339" otherwise).
+        let detail = if err.starts_with("Timestamp out of range") {
+            "must be from 0001-01-01T00:00:00Z to 9999-12-31T23:59:59Z inclusive"
+        } else {
+            "invalid RFC 3339 string"
+        };
+        PyValueError::new_err(format!("cannot decode {type_name} from JSON: {detail}"))
+    })
+}
+
+/// Parses a Duration into (seconds, nanos), matching `WktDuration.from_json`.
+fn parse_duration(type_name: &str, text: &str) -> PyResult<(i64, i32)> {
+    buffa_wkt::parse_duration(text)
+        .map_err(|_| PyValueError::new_err(format!("cannot decode {type_name} from JSON: {text}")))
+}

@@ -1,7 +1,6 @@
 //! `ProtoJSON` serialization.
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
-use bytes::Bytes;
 use pyo3::{
     Bound, Py, PyAny, PyErr, PyResult, Python,
     exceptions::{PyOverflowError, PyTypeError, PyValueError},
@@ -13,15 +12,13 @@ use pyo3::{
 };
 
 use crate::{
+    attribute_access::AttributeAccess,
     constants::Constants,
     descriptor::{DescEnum, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
     json_sink::{JsonSink, StringSink},
     marshaler::MessageMarshaler,
     nativemessage::NativeMessage,
-    oneof::Oneof,
     serializer::{FieldSerializer, FieldSerializerType, FieldSerializerValue, MessageSerializer},
-    wkt::WktKind,
-    wkt_json::{duration_to_json, proto_camel_case, proto_snake_case, timestamp_to_rfc3339},
 };
 
 // Integer range bounds (MIN inclusive, MAX exclusive), matching `_validate.py`.
@@ -62,45 +59,8 @@ impl MessageMarshaler {
         opts: &JsonOpts,
     ) -> PyResult<()> {
         match &self.wkt {
-            WktKind::None | WktKind::FileDescriptorSet => {
-                self.write_message_object(py, message, sink, opts)
-            }
-            WktKind::Timestamp { seconds, nanos } => {
-                let sec = self.read_int64_field(py, message, *seconds)?;
-                let nan = self.read_int32_field(py, message, *nanos)?;
-                sink.str(&timestamp_to_rfc3339(sec, nan)?)
-            }
-            WktKind::Duration { seconds, nanos } => {
-                let sec = self.read_int64_field(py, message, *seconds)?;
-                let nan = self.read_int32_field(py, message, *nanos)?;
-                sink.str(&duration_to_json(sec, nan)?)
-            }
-            WktKind::FieldMask { paths } => self.write_field_mask(py, message, *paths, sink),
-            WktKind::Wrapper { field, scalar } => {
-                let value = self.field_attr_value(py, message, *field)?;
-                write_scalar_json(*scalar, &value, sink)
-            }
-            WktKind::Struct { fields } => self.write_struct(py, message, *fields, sink, opts),
-            WktKind::ListValue { values } => {
-                self.write_list_value(py, message, *values, sink, opts)
-            }
-            WktKind::Value {
-                null_value,
-                struct_value,
-                list_value,
-                ..
-            } => self.write_value(
-                py,
-                message,
-                *null_value,
-                *struct_value,
-                *list_value,
-                sink,
-                opts,
-            ),
-            WktKind::Any { type_url, value } => {
-                self.write_any(py, message, *type_url, *value, sink, opts)
-            }
+            Some(wkt) => wkt.write_json(self, py, message, sink, opts),
+            None => self.write_message_object(py, message, sink, opts),
         }
     }
 
@@ -149,225 +109,6 @@ impl MessageMarshaler {
         Ok(())
     }
 
-    // WKT serialization
-
-    /// Reads the value of a field by index.
-    fn field_attr_value<'py>(
-        &self,
-        py: Python<'py>,
-        message: &Bound<'py, NativeMessage>,
-        idx: usize,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.serializer.fields()[idx].attr.get(py, message.as_any())
-    }
-
-    /// Reads a WKT int64 field, applying `_validate.py`-style int64 checks.
-    fn read_int64_field(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        idx: usize,
-    ) -> PyResult<i64> {
-        let value = self.field_attr_value(py, message, idx)?;
-        require_int(&value)?;
-        value
-            .extract::<i64>()
-            .map_err(|_| overflow_value(&value, "int64"))
-    }
-
-    /// Reads a WKT int32 field, applying `_validate.py`-style int32 checks.
-    fn read_int32_field(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        idx: usize,
-    ) -> PyResult<i32> {
-        let value = self.field_attr_value(py, message, idx)?;
-        require_int(&value)?;
-        #[allow(clippy::cast_possible_truncation, reason = "range-checked to i32")]
-        Ok(extract_ranged(&value, INT32_MIN, INT32_MAX, "int32")? as i32)
-    }
-
-    fn write_field_mask<S: JsonSink>(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        paths_idx: usize,
-        sink: &mut S,
-    ) -> PyResult<()> {
-        let paths = self
-            .field_attr_value(py, message, paths_idx)?
-            .cast_into::<PyList>()?;
-        if paths.is_empty() {
-            return sink.str("");
-        }
-        let mut out = String::new();
-        for path in paths.iter() {
-            let path = path.extract::<&str>()?;
-            let camel = proto_camel_case(path);
-            if proto_snake_case(&camel) != path {
-                return Err(PyValueError::new_err(format!(
-                    "invalid FieldMask path: lowerCamelCase of {path} is irreversible"
-                )));
-            }
-            out.push_str(&camel);
-            out.push(',');
-        }
-        // Drop trailing comma.
-        sink.str(&out[..out.len() - 1])
-    }
-
-    fn write_struct<S: JsonSink>(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        fields_idx: usize,
-        sink: &mut S,
-        opts: &JsonOpts,
-    ) -> PyResult<()> {
-        let FieldSerializerType::Map {
-            value_serializer, ..
-        } = &self.serializer.fields()[fields_idx].serializer.type_
-        else {
-            return Err(PyValueError::new_err("expected map for Struct.fields"));
-        };
-        let map = self
-            .field_attr_value(py, message, fields_idx)?
-            .cast_into::<PyDict>()?;
-        sink.begin_object()?;
-        for (key, value) in map {
-            sink.py_key(key.cast::<PyString>()?)?;
-            value_serializer.write_single_json_value(py, &value, sink, opts)?;
-        }
-        sink.end_object()?;
-        Ok(())
-    }
-
-    fn write_list_value<S: JsonSink>(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        values_idx: usize,
-        sink: &mut S,
-        opts: &JsonOpts,
-    ) -> PyResult<()> {
-        let element = &self.serializer.fields()[values_idx].serializer;
-        let values = self
-            .field_attr_value(py, message, values_idx)?
-            .cast_into::<PyList>()?;
-        sink.begin_array()?;
-        for item in values.iter() {
-            element.write_single_json_value(py, &item, sink, opts)?;
-        }
-        sink.end_array()?;
-        Ok(())
-    }
-
-    fn write_value<S: JsonSink>(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        null_value_idx: usize,
-        struct_value_idx: usize,
-        list_value_idx: usize,
-        sink: &mut S,
-        opts: &JsonOpts,
-    ) -> PyResult<()> {
-        // All Value fields share the `kind` oneof accessor.
-        let oneof_access = self.serializer.fields()[null_value_idx]
-            .oneof
-            .as_ref()
-            .ok_or_else(|| PyValueError::new_err("value must have exactly one field set"))?;
-        let Ok(oneof) = oneof_access.get(py, message.as_any())?.cast_into::<Oneof>() else {
-            return Err(PyValueError::new_err(
-                "value must have exactly one field set",
-            ));
-        };
-        let oneof = oneof.get();
-        let field = oneof.field.bind(py).cast::<PyString>()?;
-        let value = oneof.value.bind(py);
-        match field.to_str()? {
-            "null_value" => sink.null(),
-            "number_value" => {
-                let number = value.extract::<f64>()?;
-                if !number.is_finite() {
-                    return Err(PyValueError::new_err("value cannot be NaN or Infinity"));
-                }
-                sink.py_number(value)
-            }
-            "string_value" => sink.py_str(value.cast::<PyString>()?),
-            "bool_value" => sink.bool(value.extract::<bool>()?),
-            "struct_value" => self.serializer.fields()[struct_value_idx]
-                .serializer
-                .write_single_json_value(py, value, sink, opts),
-            "list_value" => self.serializer.fields()[list_value_idx]
-                .serializer
-                .write_single_json_value(py, value, sink, opts),
-            _ => Err(PyValueError::new_err(
-                "value must have exactly one field set",
-            )),
-        }
-    }
-
-    #[allow(clippy::too_many_arguments, reason = "internal writer")]
-    fn write_any<S: JsonSink>(
-        &self,
-        py: Python<'_>,
-        message: &Bound<'_, NativeMessage>,
-        type_url_idx: usize,
-        value_idx: usize,
-        sink: &mut S,
-        opts: &JsonOpts,
-    ) -> PyResult<()> {
-        let type_url_py = self.field_attr_value(py, message, type_url_idx)?;
-        let type_url = type_url_py.extract::<&str>()?;
-        if type_url.is_empty() {
-            sink.begin_object()?;
-            sink.end_object()?;
-            return Ok(());
-        }
-        let Some(registry) = &opts.registry else {
-            return Err(PyValueError::new_err(format!(
-                "any \"{type_url}\" is not in the type registry"
-            )));
-        };
-        let registry = registry.bind(py);
-        let type_name = type_url_to_name(&type_url)?;
-        let desc = registry.call_method1(self.constants.message.bind(py), (type_name,))?;
-        if desc.is_none() {
-            return Err(PyValueError::new_err(format!(
-                "any: \"{type_url}\" is not in the type registry"
-            )));
-        }
-        let inner_type_obj = desc.getattr(&self.constants.type_)?;
-        let inner_type = inner_type_obj.cast::<PyType>()?;
-        let inner_marshaler_obj = inner_type.getattr(&self.constants.ext_marshaler)?;
-        let inner_marshaler = inner_marshaler_obj
-            .cast::<MessageMarshaler>()?
-            .get()
-            .clone();
-
-        let value_bytes: Vec<u8> = self.field_attr_value(py, message, value_idx)?.extract()?;
-        let inner_msg = inner_marshaler.new_empty_message(py, inner_type)?;
-        inner_marshaler.merge_from_binary(py, &inner_msg, Bytes::from(value_bytes), false)?;
-
-        sink.begin_object()?;
-        if matches!(inner_marshaler.wkt, WktKind::None) {
-            // Regular message: inline its fields, then `@type` last.
-            inner_marshaler.write_message_fields(py, &inner_msg, sink, opts)?;
-            sink.key("@type")?;
-            sink.str(type_url)?;
-        } else {
-            // Well-known type (including FileDescriptorSet): wrap in `value`.
-            sink.key("@type")?;
-            sink.str(type_url)?;
-            sink.key("value")?;
-            inner_marshaler.write_json(py, &inner_msg, sink, opts)?;
-        }
-        sink.end_object()?;
-        Ok(())
-    }
-
     fn write_extensions<S: JsonSink>(
         &self,
         py: Python<'_>,
@@ -397,8 +138,8 @@ impl MessageMarshaler {
             let ext_value_desc = ext_desc.getattr(&self.constants.value)?;
             let field_value = DescFieldValue::new(py, &ext_value_desc, &self.constants)?;
             let type_name = ext_desc.getattr(&self.constants.type_name)?;
-            let type_name = type_name.cast::<PyString>()?;
-            sink.key(&format!("[{}]", type_name.to_str()?))?;
+            let type_name = type_name.extract::<&str>()?;
+            sink.key(&format!("[{type_name}]"))?;
             write_desc_field_value(py, &field_value, &value, sink, opts)?;
         }
         Ok(())
@@ -508,7 +249,32 @@ fn write_single_desc_value<S: JsonSink>(
     }
 }
 
-fn write_message_json<S: JsonSink>(
+/// Reads a WKT int64 field, applying `_validate.py`-style int64 checks.
+pub(crate) fn read_int64_attr(
+    py: Python<'_>,
+    message: &Bound<'_, NativeMessage>,
+    attr: &AttributeAccess,
+) -> PyResult<i64> {
+    let value = attr.get(py, message.as_any())?;
+    require_int(&value)?;
+    value
+        .extract::<i64>()
+        .map_err(|_| overflow_value(&value, "int64"))
+}
+
+/// Reads a WKT int32 field, applying `_validate.py`-style int32 checks.
+pub(crate) fn read_int32_attr(
+    py: Python<'_>,
+    message: &Bound<'_, NativeMessage>,
+    attr: &AttributeAccess,
+) -> PyResult<i32> {
+    let value = attr.get(py, message.as_any())?;
+    require_int(&value)?;
+    #[allow(clippy::cast_possible_truncation, reason = "range-checked to i32")]
+    Ok(extract_ranged(&value, INT32_MIN, INT32_MAX, "int32")? as i32)
+}
+
+pub(crate) fn write_message_json<S: JsonSink>(
     py: Python<'_>,
     message_desc: &DescMessage,
     value: &Bound<'_, PyAny>,
@@ -539,7 +305,8 @@ fn write_enum_json<S: JsonSink>(
         )));
     }
     if let Ok(number) = value.extract::<i32>() {
-        if !enum_desc.open && !enum_desc.names_by_number.contains_key(&number) {
+        let name = enum_desc.names_by_number.get(&number);
+        if !enum_desc.open && name.is_none() {
             return Err(PyValueError::new_err(format!(
                 "invalid enum value {number} for enum {}",
                 enum_desc.type_name.bind(py).to_str()?
@@ -551,7 +318,7 @@ fn write_enum_json<S: JsonSink>(
         if opts.print_enums_as_ints {
             return sink.i64(i64::from(number));
         }
-        if let Some(name) = enum_desc.names_by_number.get(&number) {
+        if let Some(name) = name {
             return sink.py_str(name.bind(py));
         }
         // Open enum, unknown value: emit the bare integer.
@@ -570,7 +337,7 @@ fn write_enum_json<S: JsonSink>(
     }
 }
 
-fn write_scalar_json<S: JsonSink>(
+pub(crate) fn write_scalar_json<S: JsonSink>(
     scalar: ScalarType,
     value: &Bound<'_, PyAny>,
     sink: &mut S,
@@ -734,7 +501,7 @@ fn message_value_type_error(expected_type: &Bound<'_, PyType>, value: &Bound<'_,
     }
 }
 
-fn type_url_to_name(url: &str) -> PyResult<&str> {
+pub(crate) fn type_url_to_name(url: &str) -> PyResult<&str> {
     let name = match url.rfind('/') {
         Some(index) => &url[index + 1..],
         None => url,

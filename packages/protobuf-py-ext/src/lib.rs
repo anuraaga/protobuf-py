@@ -14,8 +14,7 @@ mod oneof;
 mod parser;
 mod reverse_buffer;
 mod serializer;
-mod wkt;
-mod wkt_json;
+mod wkt_registry;
 
 /// A Python module implemented in Rust.
 #[pymodule(name = "_protobuf_ext", gil_used = false)]
