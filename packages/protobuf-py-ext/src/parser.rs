@@ -65,7 +65,7 @@ pub(crate) enum FieldParserValue {
 
 impl FieldParserValue {
     /// Converts descriptor single-value metadata into parser-local metadata.
-    fn from_desc_single(value: &DescSingleValue) -> Self {
+    pub(crate) fn from_desc_single(value: &DescSingleValue) -> Self {
         match value {
             DescSingleValue::Scalar(scalar_type) => Self::Scalar(*scalar_type),
             DescSingleValue::Message {

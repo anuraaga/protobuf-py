@@ -18,7 +18,7 @@ use crate::{
     attribute_access::AttributeAccess,
     constants::Constants,
     descriptor::{DescField, DescFieldValue, DescMessage, DescSingleValue, ScalarType},
-    json_parse::{FromJsonOpts, read_json_value, read_message, read_scalar},
+    json_parse::{FieldContext, FromJsonOpts, read_json_value, read_message, read_scalar},
     json_serialize::{
         JsonOpts, read_int32_attr, read_int64_attr, write_message_json, write_scalar_json,
     },
@@ -576,7 +576,9 @@ impl WktWrapper {
                 .set(message.as_any(), &self.scalar.zero_value(py).into_bound(py))?;
             return Ok(());
         }
-        let value = read_scalar(marshaler, self.name.bind(py), src, self.scalar)?;
+        let name = self.name.bind(py);
+        let ctx = FieldContext::Field { marshaler, name };
+        let value = read_scalar(&ctx, src, self.scalar)?;
         self.field.set(message.as_any(), &value)
     }
 }

@@ -20,7 +20,7 @@ use pyo3::{
 };
 
 use crate::{
-    descriptor::{DescEnum, ScalarType},
+    descriptor::{DescEnum, DescFieldValue, ScalarType},
     json_source::{JiterSource, JsonKind, JsonSource, PyTreeSource},
     marshaler::MessageMarshaler,
     nativemessage::NativeMessage,
@@ -151,7 +151,7 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
             }
             read_field(marshaler, parser, message, src, opts, depth)?;
         } else {
-            handle_unknown_key(marshaler, message, &key, src, opts)?;
+            handle_unknown_key(marshaler, message, &key, src, opts, depth)?;
         }
         Ok(())
     })?;
@@ -223,7 +223,9 @@ fn read_singular<'py, R: JsonSource<'py>>(
                 )?;
                 return Ok(());
             }
-            let value = read_scalar(marshaler, parser.name.bind(py), src, *scalar)?;
+            let name = parser.name.bind(py);
+            let ctx = FieldContext::Field { marshaler, name };
+            let value = read_scalar(&ctx, src, *scalar)?;
             parser.assign_singular(py, message, &value, oneof_attr, requires_presence)
         }
         FieldParserValue::Enum(enum_) => {
@@ -299,14 +301,14 @@ fn read_list<'py, R: JsonSource<'py>>(
     depth: usize,
 ) -> PyResult<()> {
     let py = src.py();
+    let name = parser.name.bind(py);
+    let ctx = FieldContext::Field { marshaler, name };
     if src.peek()? == JsonKind::Null {
         src.next_null()?;
         return Ok(());
     }
     if src.peek()? != JsonKind::Array {
-        return Err(field_error(
-            marshaler,
-            parser.name.bind(py),
+        return Err(ctx.error(
             &format!("expected list got {}", read_json_value(src)?.get_type()),
             Exc::Type,
         ));
@@ -314,15 +316,7 @@ fn read_list<'py, R: JsonSource<'py>>(
     let list_obj = parser.attr.get(py, message.as_any())?;
     let list = list_obj.cast::<PyList>()?;
     src.for_each_array_item(|src| {
-        if let Some(value) = read_container_item(
-            marshaler,
-            parser.name.bind(py),
-            &parser.value,
-            src,
-            opts,
-            depth,
-            false,
-        )? {
+        if let Some(value) = read_container_item(&ctx, &parser.value, src, opts, depth, false)? {
             list.append(value)?;
         }
         Ok(())
@@ -342,14 +336,14 @@ fn read_map<'py, R: JsonSource<'py>>(
     value_parser: &FieldParser,
 ) -> PyResult<()> {
     let py = src.py();
+    let name = parser.name.bind(py);
+    let ctx = FieldContext::Field { marshaler, name };
     if src.peek()? == JsonKind::Null {
         src.next_null()?;
         return Ok(());
     }
     if src.peek()? != JsonKind::Object {
-        return Err(field_error(
-            marshaler,
-            parser.name.bind(py),
+        return Err(ctx.error(
             &format!("expected dict got {}", read_json_value(src)?.get_type()),
             Exc::Type,
         ));
@@ -357,16 +351,9 @@ fn read_map<'py, R: JsonSource<'py>>(
     let dict_obj = parser.attr.get(py, message.as_any())?;
     let dict = dict_obj.cast::<PyDict>()?;
     src.for_each_object_key(|key, src| {
-        let map_key = read_map_key(py, marshaler, parser.name.bind(py), key_type, key)?;
-        if let Some(value) = read_container_item(
-            marshaler,
-            parser.name.bind(py),
-            &value_parser.value,
-            src,
-            opts,
-            depth,
-            true,
-        )? {
+        let map_key = read_map_key(py, &ctx, key_type, key)?;
+        if let Some(value) = read_container_item(&ctx, &value_parser.value, src, opts, depth, true)?
+        {
             dict.set_item(map_key, value)?;
         }
         Ok(())
@@ -377,8 +364,7 @@ fn read_map<'py, R: JsonSource<'py>>(
 /// Reads a list element or map value, matching `_read_container_item`.
 #[allow(clippy::too_many_arguments, reason = "internal parser")]
 fn read_container_item<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     element: &FieldParserValue,
     src: &mut R,
     opts: &FromJsonOpts,
@@ -388,9 +374,7 @@ fn read_container_item<'py, R: JsonSource<'py>>(
     let py = src.py();
     let is_null = src.peek()? == JsonKind::Null;
     match element {
-        FieldParserValue::Scalar(scalar) if !is_null => {
-            Ok(Some(read_scalar(marshaler, field_name, src, *scalar)?))
-        }
+        FieldParserValue::Scalar(scalar) if !is_null => Ok(Some(read_scalar(ctx, src, *scalar)?)),
         FieldParserValue::Message {
             message: msg_desc, ..
         } => {
@@ -398,7 +382,7 @@ fn read_container_item<'py, R: JsonSource<'py>>(
             let is_value = matches!(inner.wkt.as_deref(), Some(WktKind::Value(_)));
             if is_null && !is_value {
                 src.next_null()?;
-                return Err(container_null_error(marshaler, field_name, is_map));
+                return Err(container_null_error(ctx, is_map));
             }
             let target = inner.new_empty_message(py, msg_desc.get_python_type(py))?;
             read_message(inner, &target, src, opts, depth + 1)?;
@@ -410,29 +394,19 @@ fn read_container_item<'py, R: JsonSource<'py>>(
         _ => {
             // Resetting null for a list item / map value: error.
             src.next_null()?;
-            Err(container_null_error(marshaler, field_name, is_map))
+            Err(container_null_error(ctx, is_map))
         }
     }
 }
 
-fn container_null_error(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'_, PyString>,
-    is_map: bool,
-) -> PyErr {
+fn container_null_error(ctx: &FieldContext<'_, '_>, is_map: bool) -> PyErr {
     let what = if is_map { "map value" } else { "list item" };
-    field_error(
-        marshaler,
-        field_name,
-        &format!("unexpected null value for {what}"),
-        Exc::Value,
-    )
+    ctx.error(&format!("unexpected null value for {what}"), Exc::Value)
 }
 
 fn read_map_key<'py>(
     py: Python<'py>,
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     key_type: ScalarType,
     raw_key: &str,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -440,22 +414,19 @@ fn read_map_key<'py>(
         ScalarType::Bool => match raw_key {
             "true" => Ok(PyBool::new(py, true).to_owned().into_any()),
             "false" => Ok(PyBool::new(py, false).to_owned().into_any()),
-            other => Err(field_error(
-                marshaler,
-                field_name,
+            other => Err(ctx.error(
                 &format!("unexpected bool map key value {other}"),
                 Exc::Value,
             )),
         },
         ScalarType::String => Ok(PyString::new(py, raw_key).into_any()),
-        _ => parse_int_string(py, marshaler, field_name, raw_key, key_type),
+        _ => parse_int_string(py, ctx, raw_key, key_type),
     }
 }
 
 /// Reads a scalar value, matching `_read_scalar`.
 pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     src: &mut R,
     scalar: ScalarType,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -464,9 +435,7 @@ pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
         ScalarType::Bool => {
             if src.peek()? != JsonKind::Bool {
                 let value = read_json_value(src)?;
-                return Err(field_error(
-                    marshaler,
-                    field_name,
+                return Err(ctx.error(
                     &format!("unexpected json type: {}", value.get_type()),
                     Exc::Type,
                 ));
@@ -474,36 +443,26 @@ pub(crate) fn read_scalar<'py, R: JsonSource<'py>>(
             Ok(PyBool::new(py, src.next_bool()?).to_owned().into_any())
         }
         ScalarType::Float => {
-            let value = parse_float(marshaler, field_name, src)?;
+            let value = parse_float(ctx, src)?;
             if value.is_finite() && !(FLOAT32_MIN..=FLOAT32_MAX).contains(&value) {
-                return Err(field_error(
-                    marshaler,
-                    field_name,
-                    &format!("float value out of range: {value}"),
-                    Exc::Overflow,
-                ));
+                return Err(ctx.error(&format!("float value out of range: {value}"), Exc::Overflow));
             }
             Ok(PyFloat::new(py, value).into_any())
         }
-        ScalarType::Double => {
-            Ok(PyFloat::new(py, parse_float(marshaler, field_name, src)?).into_any())
-        }
-        ScalarType::String => Ok(read_string(marshaler, field_name, src)?.into_any()),
-        ScalarType::Bytes => read_bytes(marshaler, field_name, src),
-        _ => read_int(marshaler, field_name, src, scalar),
+        ScalarType::Double => Ok(PyFloat::new(py, parse_float(ctx, src)?).into_any()),
+        ScalarType::String => Ok(read_string(ctx, src)?.into_any()),
+        ScalarType::Bytes => read_bytes(ctx, src),
+        _ => read_int(ctx, src, scalar),
     }
 }
 
 fn read_string<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     src: &mut R,
 ) -> PyResult<Bound<'py, PyString>> {
     if src.peek()? != JsonKind::String {
         let value = read_json_value(src)?;
-        return Err(field_error(
-            marshaler,
-            field_name,
+        return Err(ctx.error(
             &format!("expected string got: {}", value.get_type()),
             Exc::Type,
         ));
@@ -512,16 +471,13 @@ fn read_string<'py, R: JsonSource<'py>>(
 }
 
 fn read_bytes<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     src: &mut R,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = src.py();
     if src.peek()? != JsonKind::String {
         let value = read_json_value(src)?;
-        return Err(field_error(
-            marshaler,
-            field_name,
+        return Err(ctx.error(
             &format!("expected base64-encoded string got: {}", value.get_type()),
             Exc::Type,
         ));
@@ -535,7 +491,7 @@ fn read_bytes<'py, R: JsonSource<'py>>(
         } else {
             base64_standard().decode(text)
         }
-        .map_err(|_| field_error(marshaler, field_name, "invalid base64 data", Exc::Value))?;
+        .map_err(|_| ctx.error("invalid base64 data", Exc::Value))?;
         Ok(decoded)
     })?;
     Ok(PyBytes::new(py, &decoded).into_any())
@@ -558,21 +514,12 @@ fn base64_url_safe() -> base64::engine::GeneralPurpose {
 }
 
 /// Parses a float/double, matching `_parse_float`.
-fn parse_float<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
-    src: &mut R,
-) -> PyResult<f64> {
+fn parse_float<'py, R: JsonSource<'py>>(ctx: &FieldContext<'_, 'py>, src: &mut R) -> PyResult<f64> {
     match src.peek()? {
         JsonKind::Number => {
             let value = src.next_float()?;
             if !value.is_finite() {
-                return Err(field_error(
-                    marshaler,
-                    field_name,
-                    "unexpected infinite/NaN number",
-                    Exc::Value,
-                ));
+                return Err(ctx.error("unexpected infinite/NaN number", Exc::Value));
             }
             Ok(value)
         }
@@ -582,35 +529,22 @@ fn parse_float<'py, R: JsonSource<'py>>(
             "NaN" => Ok(f64::NAN),
             _ => {
                 if text.is_empty() || text.trim() != text {
-                    return Err(field_error(
-                        marshaler,
-                        field_name,
-                        &format!("invalid float/double value: {text}"),
-                        Exc::Value,
-                    ));
+                    return Err(
+                        ctx.error(&format!("invalid float/double value: {text}"), Exc::Value)
+                    );
                 }
                 match text.parse::<f64>() {
                     Ok(value) if value.is_finite() => Ok(value),
-                    Ok(_) => Err(field_error(
-                        marshaler,
-                        field_name,
-                        "unexpected infinite/NaN number",
-                        Exc::Value,
-                    )),
-                    Err(_) => Err(field_error(
-                        marshaler,
-                        field_name,
-                        &format!("invalid float/double value: {text}"),
-                        Exc::Value,
-                    )),
+                    Ok(_) => Err(ctx.error("unexpected infinite/NaN number", Exc::Value)),
+                    Err(_) => {
+                        Err(ctx.error(&format!("invalid float/double value: {text}"), Exc::Value))
+                    }
                 }
             }
         }),
         _ => {
             let value = read_json_value(src)?;
-            Err(field_error(
-                marshaler,
-                field_name,
+            Err(ctx.error(
                 &format!("unexpected json type: {}", value.get_type()),
                 Exc::Type,
             ))
@@ -620,8 +554,7 @@ fn parse_float<'py, R: JsonSource<'py>>(
 
 /// Parses an integer scalar, matching `_read_int`/`_parse_int`.
 fn read_int<'py, R: JsonSource<'py>>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     src: &mut R,
     int_type: ScalarType,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -634,9 +567,7 @@ fn read_int<'py, R: JsonSource<'py>>(
             } else {
                 let float_value = number.extract::<f64>()?;
                 if float_value.fract() != 0.0 {
-                    return Err(field_error(
-                        marshaler,
-                        field_name,
+                    return Err(ctx.error(
                         &format!("expected integer, got non-integer float: {}", number.str()?),
                         Exc::Value,
                     ));
@@ -646,39 +577,31 @@ fn read_int<'py, R: JsonSource<'py>>(
         }
         JsonKind::String => {
             return src.with_next_str(|text| {
-                parse_int_string(py, marshaler, field_name, text, int_type)
-                    .and_then(|value| range_check_int(marshaler, field_name, value, int_type))
+                parse_int_string(py, ctx, text, int_type)
+                    .and_then(|value| range_check_int(ctx, value, int_type))
             });
         }
         _ => {
             let value = read_json_value(src)?;
-            return Err(field_error(
-                marshaler,
-                field_name,
+            return Err(ctx.error(
                 &format!("unexpected json type: {}", value.get_type()),
                 Exc::Type,
             ));
         }
     };
-    range_check_int(marshaler, field_name, value, int_type)
+    range_check_int(ctx, value, int_type)
 }
 
 /// Parses an integer from a quoted string, matching the `str` branch of
 /// `_parse_int` (then the caller range-checks).
 fn parse_int_string<'py>(
     py: Python<'py>,
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     text: &str,
     _int_type: ScalarType,
 ) -> PyResult<Bound<'py, PyAny>> {
     if text.is_empty() || text.trim() != text {
-        return Err(field_error(
-            marshaler,
-            field_name,
-            &format!("invalid integer value: {text}"),
-            Exc::Value,
-        ));
+        return Err(ctx.error(&format!("invalid integer value: {text}"), Exc::Value));
     }
     let int_type = py.get_type::<PyInt>();
     if let Ok(value) = int_type.call1((text, 10)) {
@@ -690,12 +613,7 @@ fn parse_int_string<'py>(
             let float_obj = PyFloat::new(py, float_value);
             py_int_from_float(py, &float_obj)
         }
-        _ => Err(field_error(
-            marshaler,
-            field_name,
-            &format!("invalid integer value: '{text}'"),
-            Exc::Value,
-        )),
+        _ => Err(ctx.error(&format!("invalid integer value: '{text}'"), Exc::Value)),
     }
 }
 
@@ -707,8 +625,7 @@ fn py_int_from_float<'py>(
 }
 
 fn range_check_int<'py>(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'py, PyString>,
+    ctx: &FieldContext<'_, 'py>,
     value: Bound<'py, PyAny>,
     int_type: ScalarType,
 ) -> PyResult<Bound<'py, PyAny>> {
@@ -730,9 +647,7 @@ fn range_check_int<'py>(
     if ok {
         Ok(value)
     } else {
-        Err(field_error(
-            marshaler,
-            field_name,
+        Err(ctx.error(
             &format!("value {} out of range for {name}", value.str()?),
             Exc::Overflow,
         ))
@@ -813,6 +728,7 @@ fn handle_unknown_key<'py, R: JsonSource<'py>>(
     raw_key: &str,
     src: &mut R,
     opts: &FromJsonOpts,
+    depth: usize,
 ) -> PyResult<()> {
     let py = src.py();
     if raw_key.starts_with('[')
@@ -828,7 +744,7 @@ fn handle_unknown_key<'py, R: JsonSource<'py>>(
             let extendee_name = extendee.getattr(&marshaler.constants.type_name)?;
             let extendee_name = extendee_name.cast::<PyString>()?.to_str()?;
             if extendee_name == &*marshaler.type_name {
-                read_extension(marshaler, message, &extension, src, opts)?;
+                read_extension(marshaler, message, &extension, src, opts, depth)?;
             } else {
                 src.skip()?;
             }
@@ -845,47 +761,88 @@ fn handle_unknown_key<'py, R: JsonSource<'py>>(
     }
 }
 
+/// Reads an extension value from the stream and stores it on the message.
 fn read_extension<'py, R: JsonSource<'py>>(
     marshaler: &MessageMarshaler,
     message: &Bound<'py, NativeMessage>,
     extension: &Bound<'py, PyAny>,
     src: &mut R,
     opts: &FromJsonOpts,
+    depth: usize,
 ) -> PyResult<()> {
-    // Materialize the extension value and delegate to the Python read path,
-    // reusing the pure-Python extension logic through the message's __setitem__.
     let py = src.py();
-    let value = read_json_value(src)?;
     let ext_type = extension.getattr(&marshaler.constants.type_)?;
-    // A null clears the extension; otherwise route through message_from_json_value
-    // on the extension's value descriptor.
-    if value.is_none() {
-        message.as_any().del_item(&ext_type)?;
-        return Ok(());
+    let ext_type_name = extension
+        .getattr(&marshaler.constants.type_name)?
+        .extract::<String>()?;
+    let ctx = FieldContext::Extension {
+        type_name: &ext_type_name,
+    };
+    let ext_value = extension.getattr(&marshaler.constants.value)?;
+    let desc_value = DescFieldValue::new(py, &ext_value, &marshaler.constants)?;
+    let target = message.as_any();
+    match &desc_value {
+        DescFieldValue::Scalar { scalar_type, .. } => {
+            if src.peek()? == JsonKind::Null {
+                src.next_null()?;
+                target.del_item(&ext_type)?;
+            } else {
+                let value = read_scalar(&ctx, src, *scalar_type)?;
+                target.set_item(&ext_type, value)?;
+            }
+        }
+        DescFieldValue::Enum { enum_, .. } => {
+            if src.peek()? == JsonKind::Null && !enum_.is_null_value {
+                src.next_null()?;
+                target.del_item(&ext_type)?;
+            } else if let Some(value) = read_enum(enum_, src, opts)? {
+                target.set_item(&ext_type, value)?;
+            }
+        }
+        DescFieldValue::Message {
+            message: msg_desc, ..
+        } => {
+            let inner = msg_desc.get_marshaler(py)?;
+            let is_value = matches!(inner.wkt.as_deref(), Some(WktKind::Value(_)));
+            if src.peek()? == JsonKind::Null && !is_value {
+                src.next_null()?;
+                target.del_item(&ext_type)?;
+            } else {
+                let value = inner.new_empty_message(py, msg_desc.get_python_type(py))?;
+                read_message(inner, &value, src, opts, depth + 1)?;
+                target.set_item(&ext_type, value)?;
+            }
+        }
+        DescFieldValue::List { element, .. } => {
+            // A `null` list is a no-op (matching `_read_list_extension`).
+            if src.peek()? == JsonKind::Null {
+                src.next_null()?;
+                return Ok(());
+            }
+            if src.peek()? != JsonKind::Array {
+                return Err(ctx.error(
+                    &format!("expected list got {}", read_json_value(src)?.get_type()),
+                    Exc::Type,
+                ));
+            }
+            let element_value = FieldParserValue::from_desc_single(element);
+            let list = PyList::empty(py);
+            src.for_each_array_item(|src| {
+                if let Some(value) =
+                    read_container_item(&ctx, &element_value, src, opts, depth, false)?
+                {
+                    list.append(value)?;
+                }
+                Ok(())
+            })?;
+            target.set_item(&ext_type, list)?;
+        }
+        // Protobuf does not permit map extensions.
+        DescFieldValue::Map { .. } => {
+            return Err(PyValueError::new_err("map extensions are not supported"));
+        }
     }
-    // Defer to Python's _read_extension for correctness (rare path).
-    let from_json = py.import("protobuf._from_json")?;
-    let read_ext = from_json.getattr("_read_extension")?;
-    let opts_obj = make_from_json_options(py, opts)?;
-    read_ext.call1((message, extension, value, opts_obj))?;
     Ok(())
-}
-
-fn make_from_json_options<'py>(
-    py: Python<'py>,
-    opts: &FromJsonOpts,
-) -> PyResult<Bound<'py, PyAny>> {
-    let from_json = py.import("protobuf._from_json")?;
-    let options_cls = from_json.getattr("FromJsonOptions")?;
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("ignore_unknown_fields", opts.ignore_unknown_fields)?;
-    kwargs.set_item(
-        "registry",
-        opts.registry
-            .as_ref()
-            .map_or_else(|| py.None(), |r| r.clone_ref(py)),
-    )?;
-    options_cls.call((), Some(&kwargs))
 }
 
 /// Materializes the next JSON value as a Python object.
@@ -919,18 +876,32 @@ pub(crate) fn read_json_value<'py, R: JsonSource<'py>>(src: &mut R) -> PyResult<
     }
 }
 
-fn field_error(
-    marshaler: &MessageMarshaler,
-    field_name: &Bound<'_, PyString>,
-    message: &str,
-    exc: Exc,
-) -> PyErr {
-    let name = field_name.to_str().unwrap_or_default();
-    let parent = &marshaler.type_name;
-    let full = format!("{message} for field {parent}.{name}");
-    match exc {
-        Exc::Value => PyValueError::new_err(full),
-        Exc::Type => PyTypeError::new_err(full),
-        Exc::Overflow => PyOverflowError::new_err(full),
+/// Error context for a value being parsed.
+pub(crate) enum FieldContext<'a, 'py> {
+    Field {
+        marshaler: &'a MessageMarshaler,
+        name: &'a Bound<'py, PyString>,
+    },
+    Extension {
+        type_name: &'a str,
+    },
+}
+
+impl FieldContext<'_, '_> {
+    fn error(&self, message: &str, exc: Exc) -> PyErr {
+        let full = match self {
+            FieldContext::Field { marshaler, name } => {
+                let name = name.to_str().unwrap_or_default();
+                format!("{message} for field {}.{name}", marshaler.type_name)
+            }
+            FieldContext::Extension { type_name } => {
+                format!("{message} for extension {type_name}")
+            }
+        };
+        match exc {
+            Exc::Value => PyValueError::new_err(full),
+            Exc::Type => PyTypeError::new_err(full),
+            Exc::Overflow => PyOverflowError::new_err(full),
+        }
     }
 }
