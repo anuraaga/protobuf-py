@@ -14,7 +14,6 @@
 from __future__ import annotations
 
 import io
-import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -29,13 +28,18 @@ if TYPE_CHECKING:
     from tests.conftest import Protoc
 
 
-def test_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    stdout_capture = io.StringIO()
-    monkeypatch.setattr(sys, "argv", ["protoc-gen-test", "--version"])
-    monkeypatch.setattr(sys, "stdout", stdout_capture)
+def test_version() -> None:
+    stdout = io.BytesIO()
     with pytest.raises(SystemExit):
-        run("protoc-gen-test", "1.2.3", lambda _: None)
-    assert stdout_capture.getvalue() == "protoc-gen-test v1.2.3\n"
+        run(
+            "protoc-gen-test",
+            "1.2.3",
+            lambda _: None,
+            args=["protoc-gen-test", "--version"],
+            stdin=io.BytesIO(),
+            stdout=stdout,
+        )
+    assert stdout.getvalue() == b"protoc-gen-test v1.2.3\n"
 
 
 class TestBasicRun:
