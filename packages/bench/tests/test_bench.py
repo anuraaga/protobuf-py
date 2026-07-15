@@ -222,8 +222,8 @@ class TestBench:
                     f"Message {typename} not found in registry"
                 )
                 message_class = message_desc.type
-                json_str = message_class().from_binary(payload).to_json(
-                    registry=registry
+                json_str = (
+                    message_class().from_binary(payload).to_json(registry=registry)
                 )
                 benchmark(lambda: message_class.from_json(json_str, registry=registry))
             case "google-python" | "google-upb":

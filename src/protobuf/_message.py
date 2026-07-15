@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterator
 
     from ._registry import Registry
+    from ._typing import JsonValue
 
 Self = TypeVar("Self", bound="Message")
 
@@ -661,6 +662,8 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         msg = f"unknown key for {self._desc!s}: {key!r}"
         raise KeyError(msg)
 
+    # Marshaling methods overridden in native code when available.
+
     def _merge_from_binary(self, data: bytes, ignore_unknown_fields: bool) -> None:  # noqa: FBT001
         opts = FromBinaryOptions(ignore_unknown_fields=ignore_unknown_fields)
         read_message(
@@ -717,6 +720,51 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         if not ignore_unknown_fields and (uf := source._unknown_fields):
             for key, value in uf.items():
                 self._get_or_init_unknown_fields().setdefault(key, []).extend(value)
+
+    @classmethod
+    def _from_json_value(
+        cls: type[Self],
+        data: JsonValue,
+        *,
+        ignore_unknown_fields: bool = False,
+        registry: Registry | None = None,
+    ) -> Self:
+        # Needs to be lazy import since JSON specially handles many WKTs.
+        from ._from_json import FromJsonOptions, _read_message  # noqa: PLC0415
+
+        message = cls()
+        _read_message(
+            message,
+            data,
+            FromJsonOptions(
+                ignore_unknown_fields=ignore_unknown_fields, registry=registry
+            ),
+        )
+        return message
+
+    def _to_json_value(
+        self,
+        *,
+        registry: Registry | None = None,
+        always_emit_implicit: bool = False,
+        print_enums_as_ints: bool = False,
+        use_proto_field_name: bool = False,
+    ) -> JsonValue:
+        from ._validate import validate  # noqa: PLC0415
+
+        validate(self)
+        # Needs to be lazy import since JSON specially handles many WKTs.
+        from ._to_json import ToJsonOptions, _message_to_json_value  # noqa: PLC0415
+
+        return _message_to_json_value(
+            self,
+            ToJsonOptions(
+                always_emit_implicit=always_emit_implicit,
+                print_enums_as_ints=print_enums_as_ints,
+                use_proto_field_name=use_proto_field_name,
+                registry=registry,
+            ),
+        )
 
     # Methods for updating whether a field is present or not by number. Overridden by native code.
 

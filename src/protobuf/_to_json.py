@@ -33,7 +33,6 @@ from ._descriptors import (
 )
 from ._oneof import Oneof
 from ._typing import JsonPrimitive, JsonValue, assert_never
-from ._validate import validate
 from ._wkt_registry import is_null_value_enum, match_wkt
 
 if TYPE_CHECKING:
@@ -244,20 +243,9 @@ def message_to_json_value(
         )
         ```
     """
-    validate(message)
-    from ._native_message import NativeMessageClass  # noqa: PLC0415
-
-    if NativeMessageClass is not None and isinstance(message, NativeMessageClass):
-        return message._to_json_value(
-            registry=registry,
-            always_emit_implicit=always_emit_implicit,
-            print_enums_as_ints=print_enums_as_ints,
-            use_proto_field_name=use_proto_field_name,
-        )
-    opts = ToJsonOptions(
+    return message._to_json_value(
+        registry=registry,
         always_emit_implicit=always_emit_implicit,
         print_enums_as_ints=print_enums_as_ints,
         use_proto_field_name=use_proto_field_name,
-        registry=registry,
     )
-    return _message_to_json_value(message, opts)

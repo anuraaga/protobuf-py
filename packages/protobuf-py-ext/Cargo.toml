@@ -14,8 +14,8 @@ buffa = { version = "0.8.1", features = ["json"] }
 bytes = "1.12.1"
 itoa = "1.0.15"
 jiter = { version = "0.16.0", features = ["num-bigint"] }
-ryu = "1.0.20"
 pyo3 = { version = "0.29.0", features = ["bytes", "num-bigint"] }
+ryu = "1.0.20"
 
 [build-dependencies]
 pyo3-build-config = { version = "0.29.0", features = ["resolve-config"] }
