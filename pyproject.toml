@@ -1,6 +1,6 @@
 [project]
 name = "protobuf-py"
-version = "0.1.1"
+version = "0.2.0"
 description = "Idiomatic Protocol Buffers for Python."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -44,11 +44,11 @@ dev-required = [
   # Prevent local packages from being uninstalled when syncing
   "example",
   "example-plugin",
-  "license-header",
   "protoc-gen-py",
   "upstream-protobuf",
 
   "buf-bin==1.71.0",
+  "license-header==0.0.1",
   "poethepoet==0.48.0",
   "protoc-runner==35.1",
   "pyright==1.1.411",
@@ -238,7 +238,6 @@ sequence = [
   { cmd = "ty check --project examples/protobuf" },
   { cmd = "ty check --project examples/plugin" },
   { cmd = "ty check --project packages/bench" },
-  { cmd = "ty check --project packages/license-header" },
   { cmd = "ty check --project packages/protoc-gen-py" },
   { cmd = "ty check --project packages/upstream-protobuf" },
   { cmd = "ty check" },
@@ -467,7 +466,6 @@ protoc-gen-py = { workspace = true }
 upstream-protobuf = { workspace = true }
 example = { workspace = true }
 example-plugin = { workspace = true }
-license-header = { workspace = true }
 protobuf-py-ext = { workspace = true }
 protobuf-py-bench = { workspace = true }
 
@@ -477,7 +475,6 @@ members = [
   "packages/protoc-gen-py",
   "packages/bench",
   "packages/upstream-protobuf",
-  "packages/license-header",
   "examples/protobuf",
   "examples/plugin",
 ]
