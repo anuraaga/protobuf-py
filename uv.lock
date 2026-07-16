@@ -698,7 +698,7 @@ dev-required = [
     { name = "buf-bin", specifier = "==1.71.0" },
     { name = "example", editable = "examples/protobuf" },
     { name = "example-plugin", editable = "examples/plugin" },
-    { name = "license-header", editable = "packages/license-header" },
+    { name = "license-header", specifier = "==0.0.1" },
     { name = "poethepoet", specifier = "==0.48.0" },
     { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
     { name = "protoc-runner", specifier = "==35.1" },
