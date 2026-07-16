@@ -23,6 +23,7 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from protobuf.wkt import Duration, FileDescriptorSet, Timestamp
 
+from .gen.comments_pb import MessageWithComments
 from .gen.messages_pb import MixedFields
 from .gen.scalars_pb import Scalars
 from .gen.wkt_pb import WellKnownTypes
@@ -108,6 +109,16 @@ def test_json_schema_recursive() -> None:
     defs = TypeAdapter(FileDescriptorSet).json_schema()["$defs"]
     nested_type = defs["DescriptorProto"]["properties"]["nestedType"]
     assert nested_type["items"]["$ref"] == "#/$defs/DescriptorProto"
+
+
+def test_json_schema_descriptions_from_docstrings() -> None:
+    # Descriptions are parsed from the generated class docstrings (not source
+    # code info, which runtime descriptors don't retain).
+    schema = TypeAdapter(MessageWithComments).json_schema()
+    assert schema["description"].startswith("Documentation of message 2")
+    assert schema["properties"]["x"]["description"].startswith(
+        "Documentation of field 2"
+    )
 
 
 def test_json_schema_forbids_additional_properties() -> None:
