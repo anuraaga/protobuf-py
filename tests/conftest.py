@@ -172,20 +172,33 @@ class Protoc:
         )
         stdin = io.BytesIO(req_bytes)
         stdout = io.BytesIO()
-        self._monkeypatch.setattr(sys, "argv", [f"protoc-gen-{plugin.name}"])
-        self._monkeypatch.setattr(sys, "stdin", type("stdin", (), {"buffer": stdin})())
-        self._monkeypatch.setattr(
-            sys, "stdout", type("stdout", (), {"buffer": stdout})()
-        )
+        args = [f"protoc-gen-{plugin.name}"]
         kwargs: dict[str, int] = {}
         if plugin.minimum_edition is not None:
             kwargs["minimum_edition"] = plugin.minimum_edition
         if plugin.maximum_edition is not None:
             kwargs["maximum_edition"] = plugin.maximum_edition
         if plugin.options is not None:
-            run(plugin.name, plugin.version, plugin.options, plugin.generate, **kwargs)
+            run(
+                plugin.name,
+                plugin.version,
+                plugin.options,
+                plugin.generate,
+                args=args,
+                stdin=stdin,
+                stdout=stdout,
+                **kwargs,
+            )
         else:
-            run(plugin.name, plugin.version, plugin.generate, **kwargs)
+            run(
+                plugin.name,
+                plugin.version,
+                plugin.generate,
+                args=args,
+                stdin=stdin,
+                stdout=stdout,
+                **kwargs,
+            )
         return CodeGeneratorResponse.from_binary(stdout.getvalue())
 
     def _create_codegen_request(
