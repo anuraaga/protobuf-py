@@ -373,7 +373,7 @@ def build_pydantic_core_schema(
         else None
     )
     inner = core_schema.typed_dict_schema(
-        fields, extra_behavior="forbid", total=False, metadata=metadata
+        fields, extra_behavior="ignore", total=False, metadata=metadata
     )
     return core_schema.no_info_wrap_validator_function(
         validate, inner, ref=desc.type_name, serialization=serialization
