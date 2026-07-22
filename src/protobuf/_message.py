@@ -41,6 +41,9 @@ from ._wire import BinaryReader, BinaryWriter
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
+    from pydantic import GetCoreSchemaHandler
+    from pydantic_core import CoreSchema
+
     from ._registry import Registry
 
 Self = TypeVar("Self", bound="Message")
@@ -714,3 +717,11 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
             uf = {}
             object_setattr(self, "_unknown_fields", uf)
         return uf
+
+    @classmethod
+    def __get_pydantic_core_schema__(
+        cls: type[Self], _source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        from ._jsonschema import build_pydantic_core_schema  # noqa: PLC0415
+
+        return build_pydantic_core_schema(cls, handler)

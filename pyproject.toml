@@ -31,7 +31,16 @@ Issues = "https://github.com/bufbuild/protobuf-py/issues"
 Source = "https://github.com/bufbuild/protobuf-py"
 
 [dependency-groups]
+# We ensure all dependencies are installed by default so IDE works properly for development.
 dev = [
+  { include-group = "dev-optional" },
+  { include-group = "dev-required" },
+  { include-group = "dev-subprojects" },
+]
+docs = ["mkdocstrings-python==2.0.5", "zensical==0.0.51"]
+
+# All dependencies required for CI, including running baseline tests.
+dev-required = [
   # Prevent local packages from being uninstalled when syncing
   "example",
   "example-plugin",
@@ -49,14 +58,22 @@ dev = [
   "ruff==0.15.22",
   "tombi==1.2.4",
   "ty==0.0.61",
+]
 
-  # dev dependencies only used in subprojects. Optimal structure would include these
-  # in the subproject itself, but then `uv sync` does not install them from the
-  # workspace root. We strategically keep them here instead so the entire workspace
-  # is ready for editing in an IDE with a simple sync command.
-  # If the below issue is resolved, we can move them back to subprojects and configure
-  # our default sync setting as --all-packages.
-  # https://github.com/astral-sh/uv/issues/5737
+# Optional dependencies, used for development of optional features. We run tests without
+# these installed to ensure missing optional dependencies does not introduce breakage.
+dev-optional = [
+  "pydantic==2.13.4",
+]
+
+# Dev dependencies only used in subprojects. Optimal structure would include these
+# in the subproject itself, but then `uv sync` does not install them from the
+# workspace root. We strategically keep them here instead so the entire workspace
+# is ready for editing in an IDE with a simple sync command.
+# If the below issue is resolved, we can move them back to subprojects and configure
+# our default sync setting as --all-packages.
+# https://github.com/astral-sh/uv/issues/5737
+dev-subprojects = [
   "PyYAML==6.0.3",
   "fix-protobuf-imports==0.1.7",
   "maturin==1.14.1",
@@ -64,7 +81,6 @@ dev = [
   "protobuf-py-bench",
   "pytest-asyncio==1.4.0",
 ]
-docs = ["mkdocstrings-python==2.0.5", "zensical==0.0.51"]
 
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12"]
