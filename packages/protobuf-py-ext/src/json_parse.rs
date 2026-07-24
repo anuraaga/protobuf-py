@@ -4,10 +4,7 @@
 //! reference exactly where practical. Registry-backed Any/extension handling
 //! calls the Python `Registry` object directly (never ported to Rust).
 
-use std::{
-    collections::{HashMap, HashSet},
-    rc::Rc,
-};
+use std::collections::{HashMap, HashSet};
 
 use base64::Engine as _;
 use pyo3::{
@@ -112,27 +109,35 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         )));
     }
 
-    let mut all_keys: HashSet<Rc<String>> = HashSet::new();
-    let mut seen_fields: HashMap<u32, Rc<String>> = HashMap::new();
+    // A known key can only be the field's proto name or its JSON name, so we
+    // don't need to actually copy the JSON string input itself to track.
+    let mut seen_fields: HashMap<u32, bool> = HashMap::new();
     let mut seen_oneofs: HashMap<String, String> = HashMap::new();
 
     src.for_each_object_key(|key, src| {
-        let key = Rc::new(key.to_owned());
-        if !all_keys.insert(key.clone()) {
-            return Err(PyValueError::new_err(format!("duplicate key: {key}")));
-        }
-        let field_number = marshaler.json_names.get(key.as_str()).copied();
-        if let Some(number) = field_number {
+        let entry = marshaler.json_names.get(key).copied();
+        if let Some(entry) = entry {
+            let number = entry.number;
             let parser = marshaler
                 .parser
                 .field(number)
                 .ok_or_else(|| PyValueError::new_err("field table lookup failed"))?;
-            if let Some(prev) = seen_fields.get(&number) {
+            if let Some(&prev_is_proto_name) = seen_fields.get(&number) {
+                if prev_is_proto_name == entry.is_proto_name {
+                    // Same key twice.
+                    return Err(PyValueError::new_err(format!("duplicate key: {key}")));
+                }
+                let prev = if prev_is_proto_name {
+                    &parser.name
+                } else {
+                    &parser.json_name
+                };
                 return Err(PyValueError::new_err(format!(
-                    "field set multiple times by {prev} and {key}"
+                    "field set multiple times by {} and {key}",
+                    prev.bind(py).to_str()?
                 )));
             }
-            seen_fields.insert(number, key.clone());
+            seen_fields.insert(number, entry.is_proto_name);
 
             if let Some(oneof_name) = &parser.oneof_name {
                 let is_scalar = matches!(parser.value, FieldParserValue::Scalar(_));
@@ -151,7 +156,7 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
             }
             read_field(marshaler, parser, message, src, opts, depth)?;
         } else {
-            handle_unknown_key(marshaler, message, &key, src, opts, depth)?;
+            handle_unknown_key(marshaler, message, key, src, opts, depth)?;
         }
         Ok(())
     })?;
@@ -354,7 +359,14 @@ fn read_map<'py, R: JsonSource<'py>>(
         .attr
         .get(py, message.as_any())?
         .cast_into::<PyDict>()?;
+    // Duplicates are detected on the raw JSON key,
+    // not the parsed map key: e.g. int keys "3" and "3.0" are distinct raw
+    // keys, so the last entry wins rather than erroring.
+    let mut raw_keys: HashSet<Box<str>> = HashSet::new();
     src.for_each_object_key(|key, src| {
+        if !raw_keys.insert(key.into()) {
+            return Err(PyValueError::new_err(format!("duplicate key: {key}")));
+        }
         let map_key = read_map_key(py, &ctx, key_type, key)?;
         if let Some(value) = read_container_item(&ctx, &value_parser.value, src, opts, depth, true)?
         {

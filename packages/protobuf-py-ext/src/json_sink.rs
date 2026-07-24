@@ -334,21 +334,33 @@ impl<'py> PyValueSink<'py> {
 fn write_escaped(out: &mut String, s: &str) {
     use std::fmt::Write as _;
 
+    out.reserve(s.len() + 2);
     out.push('"');
-    for ch in s.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{0008}' => out.push_str("\\b"),
-            '\u{000C}' => out.push_str("\\f"),
-            c if (c as u32) < 0x20 => {
-                let _ = write!(out, "\\u{:04x}", c as u32);
+    let bytes = s.as_bytes();
+    let mut start = 0;
+    // Scan for the next byte needing an escape and bulk-copy the clean run
+    // before it. Escape-triggering bytes are all ASCII, so they never occur
+    // inside a multi-byte UTF-8 sequence and slicing at them is boundary-safe.
+    while let Some(pos) = bytes[start..]
+        .iter()
+        .position(|&b| b < 0x20 || b == b'"' || b == b'\\')
+    {
+        let i = start + pos;
+        out.push_str(&s[start..i]);
+        match bytes[i] {
+            b'"' => out.push_str("\\\""),
+            b'\\' => out.push_str("\\\\"),
+            b'\n' => out.push_str("\\n"),
+            b'\r' => out.push_str("\\r"),
+            b'\t' => out.push_str("\\t"),
+            0x08 => out.push_str("\\b"),
+            0x0C => out.push_str("\\f"),
+            b => {
+                let _ = write!(out, "\\u{b:04x}");
             }
-            c => out.push(c),
         }
+        start = i + 1;
     }
+    out.push_str(&s[start..]);
     out.push('"');
 }

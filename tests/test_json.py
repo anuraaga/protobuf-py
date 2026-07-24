@@ -595,6 +595,31 @@ def test_from_json_oneof_set_multiple_times() -> None:
         MixedFields.from_json(json.dumps({"oneofField": "a", "oneofBaz": 1}))
 
 
+def test_from_json_duplicate_key() -> None:
+    with pytest.raises(ValueError, match="duplicate key: scalarFieldJsonName"):
+        JsonNames.from_json('{"scalarFieldJsonName": 1, "scalarFieldJsonName": 2}')
+
+
+def test_from_json_field_set_multiple_times() -> None:
+    with pytest.raises(
+        ValueError,
+        match="field set multiple times by scalar_field and scalarFieldJsonName",
+    ):
+        JsonNames.from_json('{"scalar_field": 1, "scalarFieldJsonName": 2}')
+
+
+def test_from_json_map_duplicate_key() -> None:
+    with pytest.raises(ValueError, match="duplicate key: a"):
+        Maps.from_json('{"stringToString": {"a": "1", "a": "2"}}')
+
+
+def test_from_json_map_distinct_raw_keys_not_duplicate() -> None:
+    # Duplicates are detected on the raw JSON key: "3" and "3.0" parse to the
+    # same int32 map key but are distinct raw keys, so the last entry wins.
+    msg = Maps.from_json('{"int32ToInt32": {"3": 1, "3.0": 2}}')
+    assert msg.int32_to_int32 == {3: 2}
+
+
 def _test_roundtrip(
     message: Message,
     expected: Any,

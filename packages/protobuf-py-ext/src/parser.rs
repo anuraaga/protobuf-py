@@ -175,6 +175,7 @@ impl ParserFieldType {
                     local_name_py: constants.value.clone_ref(py),
                     local_name: constants.value.extract::<String>(py).unwrap_or_default(),
                     name: constants.value.clone_ref(py),
+                    json_name: constants.value.clone_ref(py),
                     oneof_name: None,
                     attr: AttributeAccess::Name(constants.value.clone_ref(py)),
                 });
@@ -196,6 +197,8 @@ pub(crate) struct FieldParser {
     local_name: String,
     /// The proto field name.
     pub(crate) name: Py<PyString>,
+    /// The JSON name (used with `name` to render duplicate-key errors).
+    pub(crate) json_name: Py<PyString>,
     /// The oneof name this field belongs to, if any.
     pub(crate) oneof_name: Option<Py<PyString>>,
     pub(crate) attr: AttributeAccess,
@@ -232,6 +235,7 @@ impl FieldParser {
             local_name_py: field.local_name.clone_ref(py),
             local_name: field.local_name.extract::<String>(py).unwrap_or_default(),
             name: field.name.clone_ref(py),
+            json_name: field.json_name.clone_ref(py),
             oneof_name: field.value.oneof_name().map(|name| name.clone_ref(py)),
             attr: AttributeAccess::new(py, python_type, field.local_name.bind(py)),
             type_: ParserFieldType::new(py, field, python_type, constants),

@@ -49,6 +49,42 @@ struct MessageDefaults {
     dicts: Vec<AttributeAccess>,
 }
 
+/// A JSON object key that resolves to a message field, tagged with which of
+/// the field's two accepted keys (proto name or JSON name) it is.
+#[derive(Clone, Copy)]
+pub(crate) struct JsonKeyEntry {
+    pub(crate) number: u32,
+    pub(crate) is_proto_name: bool,
+}
+
+/// Maps both the proto name and JSON name of every field to its number for
+/// parse-side key lookup.
+fn build_json_names(
+    py: Python<'_>,
+    fields: &[crate::descriptor::DescField],
+) -> PyResult<HashMap<Box<str>, JsonKeyEntry>> {
+    let mut json_names = HashMap::with_capacity(fields.len() * 2);
+    for field in fields {
+        // When name == json_name the second insert wins; the flag is
+        // irrelevant then since both render the same key text.
+        json_names.insert(
+            field.name.bind(py).to_str()?.into(),
+            JsonKeyEntry {
+                number: field.number,
+                is_proto_name: true,
+            },
+        );
+        json_names.insert(
+            field.json_name.bind(py).to_str()?.into(),
+            JsonKeyEntry {
+                number: field.number,
+                is_proto_name: false,
+            },
+        );
+    }
+    Ok(json_names)
+}
+
 pub(crate) struct MessageMarshalerInner {
     /// Reusable parser for this message type.
     pub(crate) parser: MessageParser,
@@ -69,8 +105,10 @@ pub(crate) struct MessageMarshalerInner {
     /// Well-known-type classification for JSON marshaling. None means not a WKT.
     pub(crate) wkt: Option<Box<WktKind>>,
 
-    /// JSON key lookup for parsing.
-    pub(crate) json_names: HashMap<Box<str>, u32>,
+    /// JSON key lookup for parsing: both the proto field name and the JSON
+    /// name map to the field number, tagged with which of the two the key is
+    /// so duplicate-key errors can render the first key without owning a copy.
+    pub(crate) json_names: HashMap<Box<str>, JsonKeyEntry>,
 
     /// The default values for each member.
     defaults: MessageDefaults,
@@ -112,11 +150,7 @@ impl MessageMarshaler {
         let parser = MessageParser::new(py, &fields, python_type, constants);
         let serializer = MessageSerializer::new(py, message_desc, python_type, &fields, constants)?;
         let wkt = WktKind::detect(py, message_desc, &fields, &serializer, constants)?;
-        let mut json_names = HashMap::with_capacity(fields.len() * 2);
-        for field in &fields {
-            json_names.insert(field.name.bind(py).to_str()?.into(), field.number);
-            json_names.insert(field.json_name.bind(py).to_str()?.into(), field.number);
-        }
+        let json_names = build_json_names(py, &fields)?;
         let max_field_number = fields.iter().map(|f| f.number).max().unwrap_or(0);
         let members_by_name = PyDict::new(py);
         for field in &fields {
