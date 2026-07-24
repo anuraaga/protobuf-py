@@ -190,7 +190,7 @@ for field in user:
 | Field assignment (`foo.x = 123`) | ✅ Direct assignment                         | ❌ `CopyFrom()` required                                     | ✅ Direct assignment                                          |
 | `copy.copy()` / `copy.replace()` | ✅                                           | ❌                                                           | ❌                                                            |
 | Global mutable registry          | ✅ Explicit `Registry`                       | ❌ Process-wide singleton behavior                           | ✅ N/A                                                        |
-| Zero dependencies                | ✅                                           | ✅                                                           | ❌ Includes `grpclib`, `python-dateutil`, `typing-extensions` |
+| Zero dependencies                | ✅                                           | ✅                                                           | ❌ Includes `grpclib`, `python-dateutil` |
 
 </details>
 
