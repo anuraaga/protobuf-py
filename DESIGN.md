@@ -71,7 +71,7 @@ Unknown fields are preserved through binary round-trips by default, so a message
 
 ## Serialization
 
-Binary serialization is implemented as a single-pass write using a fork/join pattern for nested messages. When entering a sub-message, the writer reserves a placeholder for the length prefix, writes the sub-message content, then backfills the actual length — avoiding the need to pre-compute message sizes or make a second pass over the data.
+Binary serialization is implemented as a single-pass write into one contiguous buffer, using a fork/join pattern for nested messages. When entering a sub-message, the writer records the current position, writes the sub-message content, then inserts the length prefix back at that position — avoiding the need to pre-compute message sizes or make a second pass over the data.
 
 Deserialization uses merge semantics: parsing into an existing message overwrites scalars, recursively merges sub-messages, appends to repeated fields, and merges map entries. This is the behavior required by the protobuf spec and enables patterns like merging partial updates.
 
