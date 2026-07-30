@@ -70,6 +70,9 @@ class BinaryWriter:
         else:
             length_varint = bytearray()
             _append_varint(length_varint, length)
+            # Python idiom for inserting any number of bytes into a slot in a
+            # buffer. Results in efficiently copying the existing bytes
+            # before copying in the length.
             self._buf[fork_pos : fork_pos + 1] = length_varint
 
     def finish(self) -> bytes:
