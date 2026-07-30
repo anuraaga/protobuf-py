@@ -2,6 +2,7 @@ use pyo3::{
     Bound, Py, PyAny, PyErr, PyResult, Python,
     exceptions::PyAttributeError,
     pyfunction,
+    sync::critical_section::with_critical_section,
     types::{PyAnyMethods as _, PyString, PyType},
 };
 
@@ -52,16 +53,18 @@ impl AttributeAccess {
                     clippy::cast_ptr_alignment,
                     reason = "slot offsets point to PyObject* fields which CPython aligns correctly"
                 )]
-                let raw = unsafe {
-                    *((obj.as_ptr() as *const u8)
-                        .add(*offset)
-                        .cast::<*mut pyo3::ffi::PyObject>())
-                };
-                if raw.is_null() {
-                    // Can't happen in practiec.
-                    return Err(PyAttributeError::new_err("uninitialized slot"));
-                }
-                Ok(unsafe { Bound::from_borrowed_ptr(py, raw) })
+                with_critical_section(obj, || {
+                    let raw = unsafe {
+                        *((obj.as_ptr() as *const u8)
+                            .add(*offset)
+                            .cast::<*mut pyo3::ffi::PyObject>())
+                    };
+                    if raw.is_null() {
+                        // Can't happen in practiec.
+                        return Err(PyAttributeError::new_err("uninitialized slot"));
+                    }
+                    Ok(unsafe { Bound::from_borrowed_ptr(py, raw) })
+                })
             }
             Self::Name(name) => obj.getattr(name),
         }
@@ -71,22 +74,24 @@ impl AttributeAccess {
     pub(crate) fn set(&self, obj: &Bound<'_, PyAny>, value: &Bound<'_, PyAny>) -> PyResult<()> {
         match self {
             Self::Offset(offset) => {
-                #[allow(
-                    clippy::cast_ptr_alignment,
-                    reason = "slot offsets point to PyObject* fields which CPython aligns correctly"
-                )]
-                unsafe {
-                    let slot_ptr = obj
-                        .as_ptr()
-                        .cast::<u8>()
-                        .add(*offset)
-                        .cast::<*mut pyo3::ffi::PyObject>();
-                    let new_raw = value.as_ptr();
-                    pyo3::ffi::Py_INCREF(new_raw);
-                    let old_raw = *slot_ptr;
-                    *slot_ptr = new_raw;
-                    pyo3::ffi::Py_XDECREF(old_raw);
-                }
+                with_critical_section(obj, || {
+                    #[allow(
+                        clippy::cast_ptr_alignment,
+                        reason = "slot offsets point to PyObject* fields which CPython aligns correctly"
+                    )]
+                    unsafe {
+                        let slot_ptr = obj
+                            .as_ptr()
+                            .cast::<u8>()
+                            .add(*offset)
+                            .cast::<*mut pyo3::ffi::PyObject>();
+                        let new_raw = value.as_ptr();
+                        pyo3::ffi::Py_INCREF(new_raw);
+                        let old_raw = *slot_ptr;
+                        *slot_ptr = new_raw;
+                        pyo3::ffi::Py_XDECREF(old_raw);
+                    }
+                });
                 Ok(())
             }
             Self::Name(name) => generic_setattr(obj, name.bind(obj.py()), value),
@@ -102,7 +107,7 @@ impl AttributeAccess {
 
     /// Attempts to resolve a `__slots__` member offset for `attr_name` on
     /// `py_type`.
-    #[cfg(all(not(Py_LIMITED_API), Py_3_11, not(Py_GIL_DISABLED)))]
+    #[cfg(all(not(Py_LIMITED_API), Py_3_11))]
     fn try_compute_slot_offset(
         py_type: &Bound<'_, PyType>,
         attr_name: &Bound<'_, PyString>,
@@ -132,7 +137,7 @@ impl AttributeAccess {
         Ok(Some(offset))
     }
 
-    #[cfg(not(all(not(Py_LIMITED_API), Py_3_11, not(Py_GIL_DISABLED))))]
+    #[cfg(not(all(not(Py_LIMITED_API), Py_3_11)))]
     #[allow(
         clippy::unnecessary_wraps,
         reason = "signature must match the Py_3_11 variant"
