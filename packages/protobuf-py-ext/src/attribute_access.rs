@@ -60,7 +60,7 @@ impl AttributeAccess {
                             .cast::<*mut pyo3::ffi::PyObject>())
                     };
                     if raw.is_null() {
-                        // Can't happen in practiec.
+                        // Can't happen in practice.
                         return Err(PyAttributeError::new_err("uninitialized slot"));
                     }
                     Ok(unsafe { Bound::from_borrowed_ptr(py, raw) })
