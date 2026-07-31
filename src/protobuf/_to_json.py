@@ -211,6 +211,7 @@ def _message_to_json_value(message: Message, opts: ToJsonOptions) -> JsonValue:
 
 # PyPy's json.dumps with ensure_ascii=False has a bug that sometimes
 # returns corrupted UTF-8 strings.
+# https://github.com/pypy/pypy/issues/5547
 _ENSURE_ASCII = sys.implementation.name == "pypy"
 
 
