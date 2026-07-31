@@ -32,66 +32,48 @@ def _append_varint(buf: bytearray, value: int) -> None:
 class BinaryWriter:
     """A writer for serializing Protocol Buffer wire format.
 
-    Length-delimited message fields are handled with `fork()`/`join()` pairs.
-    Each `fork()` opens a new scope — the writing context for one sub-message —
-    and reserves a placeholder for the length varint whose value is not yet
-    known. Each `join()` closes the scope, fills in the placeholder with the
-    actual byte count, and returns to the enclosing scope.
-
-    All scopes share a single flat chunk list. Each chunk is appended exactly
-    once and never moved or copied, giving O(n) total work where n is the
-    number of bytes serialized.
+    All writes append to a single contiguous buffer. Length-delimited message
+    fields are handled with `fork()`/`join()` pairs: `fork()` records the
+    current write position, and once the payload has been written, `join()`
+    knows its byte count and inserts the length varint back at that position.
     """
 
     def __init__(self) -> None:
-        # The output of the writer will be the concatenation of all chunks in this list.
-        self._chunks: list[bytes | bytearray] = []
-
-        # Accumulation buffer for small writes; flushed to _chunks at structural boundaries.
         self._buf: bytearray = bytearray()
 
-        # Number of bytes written in the current scope (resets to 0 on fork()).
-        self._size: int = 0
-
-        # Stack of (placeholder_idx, parent_size): pushed by fork(), popped by join().
-        self._stack: list[tuple[int, int]] = []
-
-    def _flush(self) -> None:
-        """Move the accumulation buffer into _chunks if non-empty, updating size."""
-        if self._buf:
-            self._size += len(self._buf)
-            self._chunks.append(self._buf)
-            self._buf = bytearray()
+        # Write positions of open scopes: pushed by fork(), popped by join().
+        self._stack: list[int] = []
 
     def fork(self) -> None:
         """Open a new scope for a length-delimited sub-message field.
 
-        Reserves a placeholder for the length varint and saves the current
-        scope on the stack. Subsequent writes accumulate into the new scope.
-        Must be paired with a call to join().
+        Reserves one byte for the scope's length varint and records its
+        position, which subsequent writes are measured from. Must be paired
+        with a call to join().
         """
-        self._flush()
-        placeholder_idx = len(self._chunks)
-        self._chunks.append(b"")  # placeholder for the length varint
-        self._stack.append((placeholder_idx, self._size))
-        self._size = 0
+        self._stack.append(len(self._buf))
+        self._buf.append(0)
 
     def join(self) -> None:
         """Close the current scope and finalize the sub-message length.
 
-        Fills the placeholder reserved by `fork()` with the actual byte count of
-        the scope, then restores the enclosing scope.
+        Fills the byte reserved by `fork()` with the byte count of the scope,
+        widening it in place when the length varint needs more than one byte.
         """
         if not self._stack:
             msg = "join() called without a matching fork()"
             raise RuntimeError(msg)
-        self._flush()
-        placeholder_idx, parent_size = self._stack.pop()
-        sub_size = self._size
-        length_varint = bytearray()
-        _append_varint(length_varint, sub_size)
-        self._chunks[placeholder_idx] = length_varint
-        self._size = parent_size + len(length_varint) + sub_size
+        fork_pos = self._stack.pop()
+        length = len(self._buf) - fork_pos - 1
+        if length < 0x80:
+            self._buf[fork_pos] = length
+        else:
+            length_varint = bytearray()
+            _append_varint(length_varint, length)
+            # Python idiom for inserting any number of bytes into a slot in a
+            # buffer. Results in efficiently copying the existing bytes
+            # before copying in the length.
+            self._buf[fork_pos : fork_pos + 1] = length_varint
 
     def finish(self) -> bytes:
         """Return the serialized bytes.
@@ -102,8 +84,7 @@ class BinaryWriter:
         if self._stack:
             msg = f"finish() called with {len(self._stack)} unclosed fork()"
             raise RuntimeError(msg)
-        self._flush()
-        return b"".join(self._chunks)
+        return bytes(self._buf)
 
     def _varint(self, value: int) -> None:
         _append_varint(self._buf, value)
@@ -204,7 +185,7 @@ class BinaryWriter:
         if value < 0 or value >= (1 << 32):
             msg = f"value out of range for fixed32: {value}"
             raise ValueError(msg)
-        self._buf += struct.pack("<I", value)
+        self._buf.extend(struct.pack("<I", value))
 
     def sfixed32(self, value: int) -> None:
         """Write a signed 32-bit integer in fixed-width format.
@@ -215,7 +196,7 @@ class BinaryWriter:
         if value < -(1 << 31) or value >= (1 << 31):
             msg = f"value out of range for sfixed32: {value}"
             raise ValueError(msg)
-        self._buf += struct.pack("<i", value)
+        self._buf.extend(struct.pack("<i", value))
 
     def fixed64(self, value: int) -> None:
         """Write an unsigned 64-bit integer in fixed-width format.
@@ -226,7 +207,7 @@ class BinaryWriter:
         if value < 0 or value >= (1 << 64):
             msg = f"value out of range for fixed64: {value}"
             raise ValueError(msg)
-        self._buf += struct.pack("<Q", value)
+        self._buf.extend(struct.pack("<Q", value))
 
     def sfixed64(self, value: int) -> None:
         """Write a signed 64-bit integer in fixed-width format.
@@ -237,7 +218,7 @@ class BinaryWriter:
         if value < -(1 << 63) or value >= (1 << 63):
             msg = f"value out of range for sfixed64: {value}"
             raise ValueError(msg)
-        self._buf += struct.pack("<q", value)
+        self._buf.extend(struct.pack("<q", value))
 
     def float_(self, value: float) -> None:
         """Write a 32-bit floating point number.
@@ -245,7 +226,7 @@ class BinaryWriter:
         Args:
             value: The float to encode.
         """
-        self._buf += struct.pack("<f", value)
+        self._buf.extend(struct.pack("<f", value))
 
     def double(self, value: float) -> None:
         """Write a 64-bit floating point number.
@@ -253,7 +234,7 @@ class BinaryWriter:
         Args:
             value: The float to encode.
         """
-        self._buf += struct.pack("<d", value)
+        self._buf.extend(struct.pack("<d", value))
 
     def bytes_(self, value: bytes) -> None:
         """Write a length-delimited byte sequence.
@@ -262,9 +243,7 @@ class BinaryWriter:
             value: The bytes to encode.
         """
         self._varint(len(value))
-        self._flush()
-        self._size += len(value)
-        self._chunks.append(value)
+        self._buf.extend(value)
 
     def raw(self, value: bytes) -> None:
         """Write raw bytes directly to the output without any encoding.
@@ -272,9 +251,7 @@ class BinaryWriter:
         Args:
             value: The raw bytes to write.
         """
-        self._flush()
-        self._size += len(value)
-        self._chunks.append(value)
+        self._buf.extend(value)
 
     def string(self, value: str) -> None:
         """Write a length-delimited UTF-8 string.
