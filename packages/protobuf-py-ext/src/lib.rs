@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 
+#[cfg(not(Py_LIMITED_API))]
+mod alloc;
 mod attribute_access;
 mod bitset;
 mod constants;

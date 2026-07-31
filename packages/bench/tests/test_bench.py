@@ -16,6 +16,7 @@ from __future__ import annotations
 import base64
 import json
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -49,6 +50,8 @@ from bench.gen.rsb.mk48 import mk48_pb
 from bench.gen.suite_pb import Suite
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from google.protobuf.message import Message as GoogleProtobufMessage
     from protobuf import Message, Registry
     from pytest_benchmark.fixture import BenchmarkFixture
@@ -199,6 +202,59 @@ class TestBench:
                 message = _get_google_protobuf_message_instance(typename, impl)
                 message.ParseFromString(payload)
                 benchmark(message.SerializeToString)
+
+    @pytest.mark.parametrize(
+        ("_id", "typename", "payload"), nested_message_external_cases
+    )
+    def test_serialize_threaded(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: Impl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        num_threads = 4
+        # Enough iterations per submitted task that executor dispatch overhead
+        # doesn't dominate the serialization work being measured.
+        iterations = 100
+
+        # Each thread serializes its own message instance, mirroring a server
+        # handling independent requests concurrently.
+        serializers: list[Callable[[], bytes]]
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                serializers = [
+                    message_desc.type().from_binary(payload).to_binary
+                    for _ in range(num_threads)
+                ]
+            case "google-python" | "google-upb":
+                serializers = []
+                for _ in range(num_threads):
+                    message = _get_google_protobuf_message_instance(typename, impl)
+                    message.ParseFromString(payload)
+                    serializers.append(message.SerializeToString)
+
+        def serialize_many(serialize: Callable[[], bytes]) -> None:
+            for _ in range(iterations):
+                serialize()
+
+        with ThreadPoolExecutor(max_workers=num_threads) as executor:
+
+            def run() -> None:
+                futures = [
+                    executor.submit(serialize_many, serialize)
+                    for serialize in serializers
+                ]
+                for future in futures:
+                    future.result()
+
+            benchmark(run)
 
     @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
     def test_parse(
