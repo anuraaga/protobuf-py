@@ -48,6 +48,7 @@ dev-required = [
   "upstream-protobuf",
 
   "buf-bin==1.72.0",
+  "hypothesis==6.164.0",
   "license-header==0.0.1",
   "poethepoet==0.48.0",
   "protoc-runner==35.1",
@@ -363,7 +364,7 @@ addopts = [
 ]
 # Turn all warnings into errors
 filterwarnings = ["error"]
-norecursedirs = ["_gen", "gen"]
+norecursedirs = [".*", "_gen", "gen"]
 testpaths = ["src/protobuf", "tests"]
 
 ## Ruff
