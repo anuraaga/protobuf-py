@@ -21,6 +21,7 @@ nav = [
   "serialization.md",
   "well-known-types.md",
   "extensions.md",
+  { "Pydantic" = "pydantic.md" },
   { "Reflection" = [
     "reflection/index.md",
     "reflection/descriptors.md",
