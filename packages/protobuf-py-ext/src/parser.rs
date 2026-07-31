@@ -49,7 +49,7 @@ enum SingleValue<'py> {
 }
 
 /// Parser-local value metadata needed for decoding field payloads.
-enum FieldParserValue {
+pub(crate) enum FieldParserValue {
     /// Scalar value decoding info.
     Scalar(ScalarType),
     /// Nested message parser handle.
@@ -65,7 +65,7 @@ enum FieldParserValue {
 
 impl FieldParserValue {
     /// Converts descriptor single-value metadata into parser-local metadata.
-    fn from_desc_single(value: &DescSingleValue) -> Self {
+    pub(crate) fn from_desc_single(value: &DescSingleValue) -> Self {
         match value {
             DescSingleValue::Scalar(scalar_type) => Self::Scalar(*scalar_type),
             DescSingleValue::Message {
@@ -97,7 +97,7 @@ impl FieldParserValue {
 }
 
 /// Per-field parsing mode and precomputed routing state.
-enum ParserFieldType {
+pub(crate) enum ParserFieldType {
     Singular {
         /// Accessor for the oneof attribute on the message, if the field is in a oneof.
         oneof_attr: Option<AttributeAccess>,
@@ -174,6 +174,9 @@ impl ParserFieldType {
                     number: 2,
                     local_name_py: constants.value.clone_ref(py),
                     local_name: constants.value.extract::<String>(py).unwrap_or_default(),
+                    name: constants.value.clone_ref(py),
+                    json_name: constants.value.clone_ref(py),
+                    oneof_name: None,
                     attr: AttributeAccess::Name(constants.value.clone_ref(py)),
                 });
                 ParserFieldType::Map {
@@ -189,13 +192,19 @@ impl ParserFieldType {
 
 /// Parser for a single field in a message.
 pub(crate) struct FieldParser {
-    number: u32,
-    local_name_py: Py<PyString>,
+    pub(crate) number: u32,
+    pub(crate) local_name_py: Py<PyString>,
     local_name: String,
-    attr: AttributeAccess,
-    type_: ParserFieldType,
+    /// The proto field name.
+    pub(crate) name: Py<PyString>,
+    /// The JSON name (used with `name` to render duplicate-key errors).
+    pub(crate) json_name: Py<PyString>,
+    /// The oneof name this field belongs to, if any.
+    pub(crate) oneof_name: Option<Py<PyString>>,
+    pub(crate) attr: AttributeAccess,
+    pub(crate) type_: ParserFieldType,
     /// Information for parsing the field value. For lists, this is the list element and for maps, the map value.
-    value: FieldParserValue,
+    pub(crate) value: FieldParserValue,
     wire_type: WireType,
 }
 
@@ -225,6 +234,9 @@ impl FieldParser {
             number: field.number,
             local_name_py: field.local_name.clone_ref(py),
             local_name: field.local_name.extract::<String>(py).unwrap_or_default(),
+            name: field.name.clone_ref(py),
+            json_name: field.json_name.clone_ref(py),
+            oneof_name: field.value.oneof_name().map(|name| name.clone_ref(py)),
             attr: AttributeAccess::new(py, python_type, field.local_name.bind(py)),
             type_: ParserFieldType::new(py, field, python_type, constants),
             value: field_element,
@@ -310,16 +322,7 @@ impl FieldParser {
             self.read_single_value(py, tag, wire_type, Some(message), buffer, opts, depth)?;
         match value {
             SingleValue::Parsed(value) => {
-                if let Some(oneof_attr) = oneof_attr {
-                    let oneof =
-                        Oneof::new(self.local_name_py.bind(py), &value).into_bound_py_any(py)?;
-                    oneof_attr.set(message, &oneof)?;
-                } else {
-                    self.attr.set(message, &value)?;
-                    if requires_presence {
-                        message.get().add_present_field(self.number);
-                    }
-                }
+                self.assign_singular(py, message, &value, oneof_attr, requires_presence)?;
             }
             SingleValue::UnknownEnumValue(number) => {
                 if !opts.ignore_unknown_fields {
@@ -328,6 +331,28 @@ impl FieldParser {
                     encode_varint(number as u64, &mut field);
                     write_unknown_field(py, message, tag >> 3, &field)?;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Stores a decoded singular value into the message, handling oneof
+    /// wrapping and presence tracking.
+    pub(crate) fn assign_singular<'py>(
+        &self,
+        py: Python<'py>,
+        message: &Bound<'py, NativeMessage>,
+        value: &Bound<'py, PyAny>,
+        oneof_attr: Option<&AttributeAccess>,
+        requires_presence: bool,
+    ) -> PyResult<()> {
+        if let Some(oneof_attr) = oneof_attr {
+            let oneof = Oneof::new(self.local_name_py.bind(py), value).into_bound_py_any(py)?;
+            oneof_attr.set(message, &oneof)?;
+        } else {
+            self.attr.set(message, value)?;
+            if requires_presence {
+                message.get().add_present_field(self.number);
             }
         }
         Ok(())
@@ -468,6 +493,18 @@ impl FieldParser {
             // Unknown value (i.e., unknown closed enum value), whole entry is an unknown field.
             return Self::read_unknown_map_entry(py, message, entry_tag, &entry_checkpoint, opts);
         };
+        self.assign_map_entry(py, message, key, value)?;
+        Ok(())
+    }
+
+    /// Stores a decoded map key/value pair into the message's map.
+    pub(crate) fn assign_map_entry<'py>(
+        &self,
+        py: Python<'py>,
+        message: &Bound<'py, NativeMessage>,
+        key: Bound<'py, PyAny>,
+        value: Bound<'py, PyAny>,
+    ) -> PyResult<()> {
         let python_dict = self.attr.get(py, message)?;
         let dict = python_dict.cast::<PyDict>()?;
         dict.set_item(key, value)?;
@@ -577,7 +614,7 @@ impl FieldParser {
     }
 
     /// Returns the current value for a field, including oneof slot handling.
-    fn get_field_value<'py>(
+    pub(crate) fn get_field_value<'py>(
         &self,
         py: Python<'py>,
         message: &Bound<'py, NativeMessage>,
@@ -630,6 +667,11 @@ impl MessageParser {
                 python_type: python_type.clone().unbind(),
             }),
         }
+    }
+
+    /// Looks up the parser for a field by its field number.
+    pub(crate) fn field(&self, field_number: u32) -> Option<&FieldParser> {
+        self.inner.fields.get(field_number)
     }
 
     /// Merges wire data into an existing Python message instance.

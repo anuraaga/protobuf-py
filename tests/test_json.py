@@ -595,6 +595,31 @@ def test_from_json_oneof_set_multiple_times() -> None:
         MixedFields.from_json(json.dumps({"oneofField": "a", "oneofBaz": 1}))
 
 
+def test_from_json_duplicate_key() -> None:
+    with pytest.raises(ValueError, match="duplicate key: scalarFieldJsonName"):
+        JsonNames.from_json('{"scalarFieldJsonName": 1, "scalarFieldJsonName": 2}')
+
+
+def test_from_json_field_set_multiple_times() -> None:
+    with pytest.raises(
+        ValueError,
+        match="field set multiple times by scalar_field and scalarFieldJsonName",
+    ):
+        JsonNames.from_json('{"scalar_field": 1, "scalarFieldJsonName": 2}')
+
+
+def test_from_json_map_duplicate_key() -> None:
+    with pytest.raises(ValueError, match="duplicate key: a"):
+        Maps.from_json('{"stringToString": {"a": "1", "a": "2"}}')
+
+
+def test_from_json_map_distinct_raw_keys_not_duplicate() -> None:
+    # Duplicates are detected on the raw JSON key: "3" and "3.0" parse to the
+    # same int32 map key but are distinct raw keys, so the last entry wins.
+    msg = Maps.from_json('{"int32ToInt32": {"3": 1, "3.0": 2}}')
+    assert msg.int32_to_int32 == {3: 2}
+
+
 def _test_roundtrip(
     message: Message,
     expected: Any,
@@ -628,8 +653,48 @@ def _test_roundtrip(
     )
     assert json_value == expected
 
+    # Ensure to_json() must be byte-identical to json.dumps of the tree form.
+    assert json_str == json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
+
     decoded = message_from_json_value(type(message), json_value, registry=registry)
     assert decoded == message
+
+
+# Tests output fidelity of JSON, notably in the native marshaler we have
+# a special optimization for fixed values vs scientific notation.
+@pytest.mark.parametrize(
+    "value",
+    [
+        # Floats in Python's fixed-notation range
+        0.0,
+        -0.0,
+        0.3,
+        1.5,
+        -2.5,
+        100000.0,
+        1e15,
+        0.0001,
+        1234567890.12345,
+        # Floats in scientific-notation range
+        1e16,
+        1e-5,
+        1e30,
+        1e-30,
+        1.23e300,
+        -4.5e-10,
+        3.14159e-7,
+        # Ints assigned to a double field
+        5,
+        -3,
+        10**18,
+        10**30,
+    ],
+)
+def test_double_json_matches_json_dumps(value: float) -> None:
+    msg = Scalars(double_field=value)
+    assert msg.to_json() == json.dumps(
+        message_to_json_value(msg), separators=(",", ":"), ensure_ascii=False
+    )
 
 
 def test_closed_enum_to_json() -> None:

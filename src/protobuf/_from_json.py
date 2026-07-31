@@ -17,7 +17,6 @@ from __future__ import annotations
 import math
 from base64 import b64decode
 from dataclasses import dataclass
-from json import loads as parse_json
 from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 from ._descriptors import (
@@ -100,11 +99,9 @@ def merge_from_json(
         ValueError: If a google.protobuf.Any or an extension cannot be resolved
             through the registry.
     """
-    json_value = parse_json(json, object_pairs_hook=_no_duplicates)
-    opts = FromJsonOptions(
-        ignore_unknown_fields=ignore_unknown_fields, registry=registry
+    message._merge_from_json(
+        json, ignore_unknown_fields=ignore_unknown_fields, registry=registry
     )
-    _read_message(message, json_value, opts)
 
 
 def _read_message(msg: Message, json: JsonValue, opts: FromJsonOptions) -> None:
@@ -683,9 +680,6 @@ def message_from_json_value(
         )
         ```
     """
-    message = message_type()
-    opts = FromJsonOptions(
-        ignore_unknown_fields=ignore_unknown_fields, registry=registry
+    return message_type._from_json_value(
+        data, ignore_unknown_fields=ignore_unknown_fields, registry=registry
     )
-    _read_message(message, data, opts)
-    return message

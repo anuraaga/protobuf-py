@@ -42,6 +42,10 @@ pub(crate) struct ConstantsInner {
     pub(crate) element: Py<PyString>,
     /// The string `enum`.
     pub(crate) enum_: Py<PyString>,
+    /// The string `extension`.
+    pub(crate) extension: Py<PyString>,
+    /// The string `extension_for`.
+    pub(crate) extension_for: Py<PyString>,
     /// The string `_ext_marshaler`.
     pub(crate) ext_marshaler: Py<PyString>,
     /// The string `_ext_value_type`.
@@ -50,12 +54,18 @@ pub(crate) struct ConstantsInner {
     pub(crate) fields: Py<PyString>,
     /// The string `_fields_by_name`.
     pub(crate) fields_by_name: Py<PyString>,
+    /// The string `file`.
+    pub(crate) file: Py<PyString>,
+    /// The string `json_name`.
+    pub(crate) json_name: Py<PyString>,
     /// The string `key`.
     pub(crate) key: Py<PyString>,
     /// The string `local_name`.
     pub(crate) local_name: Py<PyString>,
     /// The string `message`.
     pub(crate) message: Py<PyString>,
+    /// The string `name`.
+    pub(crate) name: Py<PyString>,
     /// The string `number`.
     pub(crate) number: Py<PyString>,
     /// The string `oneof`.
@@ -110,13 +120,18 @@ impl Constants {
                 desc: PyString::new(py, "_desc").unbind(),
                 element: PyString::new(py, "element").unbind(),
                 enum_: PyString::new(py, "enum").unbind(),
+                extension: PyString::new(py, "extension").unbind(),
+                extension_for: PyString::new(py, "extension_for").unbind(),
                 ext_marshaler: PyString::new(py, "_ext_marshaler").unbind(),
                 ext_value_type: PyString::new(py, "_ext_value_type").unbind(),
                 fields: PyString::new(py, "fields").unbind(),
                 fields_by_name: PyString::new(py, "_fields_by_name").unbind(),
+                file: PyString::new(py, "file").unbind(),
+                json_name: PyString::new(py, "json_name").unbind(),
                 key: PyString::new(py, "key").unbind(),
                 local_name: PyString::new(py, "local_name").unbind(),
                 message: PyString::new(py, "message").unbind(),
+                name: PyString::new(py, "name").unbind(),
                 number: PyString::new(py, "number").unbind(),
                 oneof: PyString::new(py, "oneof").unbind(),
                 oneofs_by_local_name: PyString::new(py, "_oneofs_by_local_name").unbind(),

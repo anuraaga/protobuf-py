@@ -18,6 +18,7 @@ import json
 import uuid
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from enum import Enum
 from pathlib import Path
 from types import ModuleType
 from typing import (
@@ -33,6 +34,9 @@ from typing import (
 import pytest
 from protobuf.wkt import FileDescriptorSet, timestamp_pb
 from protobuf.wkt import descriptor_pb as google_descriptor_pb
+from pydantic import BaseModel, ConfigDict
+from pydantic import Field as ModelField
+from pydantic.alias_generators import to_camel
 
 from bench.gen.buffa import bench_messages_pb, benchmark_message1_proto3_pb
 from bench.gen.home import home_pb
@@ -55,6 +59,8 @@ if TYPE_CHECKING:
     from bench.gen.home.home_pb import GetUserHomeRequest
     from bench.gen.home.home_pb2 import GetUserHomeRequest as GetUserHomeRequestGoogle
 
+    from .conftest import Impl
+
 suite = Suite.from_binary((Path(__file__).parent / "suite.binpb").read_bytes())
 
 # We thread the case name as the _id parameter so pytest-benchmark can group on it.
@@ -67,11 +73,46 @@ nested_message_external_cases = [
     for case in suite.cases
     if case.typename == "bench.LogRecord"
 ]
-
-
-Impl: TypeAlias = Literal[
-    "bufbuild-python", "bufbuild-rust", "google-python", "google-upb"
+# We only check pydantic with a single payload type since we manually convert to pydantic
+# models to compare. LogRecord is a fairly representative type while having same
+# representation in ProtoJSON and JSON, so it's what we go with.
+json_external_cases = nested_message_external_cases
+JsonImpl: TypeAlias = Literal[
+    "bufbuild-python", "bufbuild-rust", "google-python", "pydantic"
 ]
+
+_protobuf_config = ConfigDict(
+    alias_generator=to_camel,
+    populate_by_name=True,
+)
+
+
+class LogRecordModel(BaseModel):
+    model_config = _protobuf_config
+
+    class Context(BaseModel):
+        model_config = _protobuf_config
+
+        file: str
+        line: int
+        function: str
+
+    class Severity(Enum):
+        UNSPECIFIED = "UNSPECIFIED"
+        DEBUG = "DEBUG"
+        INFO = "INFO"
+        WARN = "WARN"
+        ERROR = "ERROR"
+
+    timestamp_nanos: int = 0
+    service_name: str = ""
+    instance_id: str = ""
+    severity: Severity = Severity.UNSPECIFIED
+    message: str = ""
+    labels: dict[str, str] = ModelField(default_factory=dict)
+    trace_id: str = ""
+    span_id: str = ""
+    source: Context | None = None
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -180,6 +221,96 @@ class TestBench:
             case "google-python" | "google-upb":
                 message = _get_google_protobuf_message_instance(typename, impl)
                 benchmark(message.ParseFromString, payload)
+
+    @pytest.mark.parametrize(("_id", "typename", "payload"), json_external_cases)
+    @pytest.mark.parametrize(
+        "impl",
+        ["bufbuild-python", "bufbuild-rust", "google-python", "pydantic"],
+        scope="module",
+    )
+    def test_serialize_json(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: JsonImpl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust" | "pydantic":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                message = message_desc.type().from_binary(payload)
+                match impl:
+                    case "bufbuild-python" | "bufbuild-rust":
+                        benchmark(lambda: message.to_json(registry=registry))
+                    case "pydantic":
+                        model = LogRecordModel.model_validate_json(
+                            message.to_json(registry=registry)
+                        )
+                        model_json = benchmark(
+                            lambda: model.model_dump_json(by_alias=True)
+                        )
+                        # Spot check the pydantic conversion worked correctly
+                        assert (
+                            message.__class__.from_json(model_json, registry=registry)
+                            == message
+                        )
+            case "google-python":
+                from google.protobuf import json_format
+
+                message = _get_google_protobuf_message_instance(typename, impl)
+                message.ParseFromString(payload)
+                benchmark(json_format.MessageToJson, message)
+
+    @pytest.mark.parametrize(("_id", "typename", "payload"), json_external_cases)
+    @pytest.mark.parametrize(
+        "impl",
+        ["bufbuild-python", "bufbuild-rust", "google-python", "pydantic"],
+        scope="module",
+    )
+    def test_parse_json(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: JsonImpl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust" | "pydantic":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                message_class = message_desc.type
+                json_str = (
+                    message_class().from_binary(payload).to_json(registry=registry)
+                )
+                match impl:
+                    case "bufbuild-python" | "bufbuild-rust":
+                        benchmark(
+                            lambda: message_class.from_json(json_str, registry=registry)
+                        )
+                    case "pydantic":
+                        model = benchmark(
+                            lambda: LogRecordModel.model_validate_json(json_str)
+                        )
+                        # Spot check the pydantic conversion worked correctly
+                        assert message_class.from_json(
+                            model.model_dump_json(by_alias=True), registry=registry
+                        ) == message_class().from_binary(payload)
+            case "google-python":
+                from google.protobuf import json_format
+
+                message = _get_google_protobuf_message_instance(typename, impl)
+                message.ParseFromString(payload)
+                json_str = json_format.MessageToJson(message)
+                benchmark(lambda: json_format.Parse(json_str, type(message)()))
 
     @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
     def test_deepcopy(

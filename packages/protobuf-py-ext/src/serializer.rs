@@ -14,8 +14,8 @@ use pyo3::{
     Bound, Py, PyAny, PyErr, PyResult, Python,
     exceptions::{PyOverflowError, PyTypeError, PyValueError},
     types::{
-        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
-        PyFloat, PyInt, PyList, PyListMethods as _, PyString, PyStringMethods as _, PyType,
+        PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _, PyInt,
+        PyList, PyListMethods as _, PyString, PyStringMethods as _, PyType,
     },
 };
 
@@ -38,7 +38,7 @@ pub(crate) struct ToBinaryOpts {
 }
 
 /// Per-field serialization mode and container-specific state.
-enum FieldSerializerType {
+pub(crate) enum FieldSerializerType {
     /// Singular scalar/message/enum field.
     Singular,
     /// Repeated list field.
@@ -100,7 +100,7 @@ impl FieldSerializerType {
 }
 
 /// Serializer-local value metadata needed to write field payloads.
-enum FieldSerializerValue {
+pub(crate) enum FieldSerializerValue {
     /// Scalar encoding info.
     Scalar(ScalarType),
     /// Enum validation metadata.
@@ -130,13 +130,13 @@ impl FieldSerializerValue {
 }
 
 /// Serializer for one field number.
-struct FieldSerializer {
+pub(crate) struct FieldSerializer {
     /// The tag to output for the field.
     tag: u32,
     /// The type of the field.
-    type_: FieldSerializerType,
+    pub(crate) type_: FieldSerializerType,
     /// How to serialize the value of the field. For lists, it is the list element type and for maps, the map value.
-    value: FieldSerializerValue,
+    pub(crate) value: FieldSerializerValue,
 }
 
 impl FieldSerializer {
@@ -447,7 +447,7 @@ impl FieldSerializer {
         Ok(())
     }
 
-    fn is_zero_value(&self, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    pub(crate) fn is_zero_value(&self, value: &Bound<'_, PyAny>) -> PyResult<bool> {
         if matches!(&self.type_, FieldSerializerType::Singular) {
             return match &self.value {
                 FieldSerializerValue::Scalar(scalar_type) => match scalar_type {
@@ -468,19 +468,23 @@ impl FieldSerializer {
 /// Information on a field in the serializer. We separate out the state needed
 /// to evaluate a field value from the state needed to serialize it to keep
 /// the serialization logic simpler.
-struct SerializerField {
+pub(crate) struct SerializerField {
     /// The Python attribute name for the field (used in error messages and oneof lookup).
-    py_attr: String,
+    pub(crate) py_attr: String,
+    /// The proto field name.
+    pub(crate) name: Py<PyString>,
+    /// The JSON name.
+    pub(crate) json_name: Py<PyString>,
     /// The field number.
-    number: u32,
+    pub(crate) number: u32,
     /// The presence of the field.
-    presence: FieldPresence,
+    pub(crate) presence: FieldPresence,
     /// Access for the oneof wrapper attribute, if this field is part of a oneof.
-    oneof: Option<AttributeAccess>,
+    pub(crate) oneof: Option<AttributeAccess>,
     /// Access for the field's own attribute on the message.
-    attr: AttributeAccess,
+    pub(crate) attr: AttributeAccess,
     /// The serializer for the field.
-    serializer: FieldSerializer,
+    pub(crate) serializer: FieldSerializer,
 }
 
 /// Shared serializer state reused across serializer clones.
@@ -523,6 +527,8 @@ impl MessageSerializer {
             let attr_access = AttributeAccess::new(py, python_type, field.local_name.bind(py));
             marshaler_fields.push(SerializerField {
                 py_attr: field.local_name.extract::<String>(py)?,
+                name: field.name.clone_ref(py),
+                json_name: field.json_name.clone_ref(py),
                 number: field.number,
                 presence: field.presence,
                 oneof: oneof_access,
@@ -556,6 +562,11 @@ impl MessageSerializer {
 }
 
 impl MessageSerializer {
+    /// The per-field serializers in declaration order.
+    pub(crate) fn fields(&self) -> &[SerializerField] {
+        &self.inner.fields
+    }
+
     /// Validates a Python message and writes its wire bytes.
     ///
     /// Bytes are written back-to-front into `buffer`, so fields are emitted in
@@ -584,7 +595,7 @@ impl MessageSerializer {
         }
 
         for field in self.inner.fields.iter().rev() {
-            let Some(value) = Self::get_field_value(message, field)? else {
+            let Some(value) = Self::get_field_value(message, field, false)? else {
                 continue;
             };
             field
@@ -596,9 +607,13 @@ impl MessageSerializer {
     }
 
     /// Gets a field value if it should be serialized for this message.
-    fn get_field_value<'py>(
+    ///
+    /// When `emit_implicit_zero` is true, implicit-presence fields are returned
+    /// even at their zero value, used with JSON `always_emit_implicit`).
+    pub(crate) fn get_field_value<'py>(
         message: &Bound<'py, NativeMessage>,
         field: &SerializerField,
+        emit_implicit_zero: bool,
     ) -> PyResult<Option<Bound<'py, PyAny>>> {
         let py = message.py();
 
@@ -618,7 +633,7 @@ impl MessageSerializer {
         let value = field.attr.get(py, message)?;
 
         if matches!(field.presence, FieldPresence::Implicit) {
-            return if field.serializer.is_zero_value(&value)? {
+            return if !emit_implicit_zero && field.serializer.is_zero_value(&value)? {
                 Ok(None)
             } else {
                 Ok(Some(value))
@@ -671,7 +686,11 @@ impl MessageSerializer {
     }
 
     /// Ensures oneof slots reference known fields.
-    fn validate_oneofs(&self, py: Python<'_>, message: &Bound<'_, PyAny>) -> PyResult<()> {
+    pub(crate) fn validate_oneofs(
+        &self,
+        py: Python<'_>,
+        message: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
         for oneof_access in &self.inner.oneofs {
             let oneof_any = oneof_access.get(py, message)?;
             if oneof_any.is_none() {

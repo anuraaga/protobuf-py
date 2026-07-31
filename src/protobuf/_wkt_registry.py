@@ -60,7 +60,8 @@ _TIMESTAMP_RE = re.compile(
     r"(Z|(?:[+-][0-9]{2}:[0-9]{2}))$"
 )
 
-_DURATION_RE = re.compile(r"^(-?[0-9]+)(?:\.([0-9]{1,9}))?s$")
+# The fractional part may be empty (`"5.s"`).
+_DURATION_RE = re.compile(r"^(-?[0-9]+)(?:\.([0-9]{0,9}))?s$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,13 +220,12 @@ class WktAny:
         unpacked = message.unpack(desc)
         assert unpacked is not None  # noqa: S101
         json_value = _message_to_json_value(unpacked, opts)
-        # WKTs have custom JSON representations (strings, arrays, null, etc.)
-        # that must be wrapped in a "value" field. Regular messages produce
-        # dicts whose fields are merged alongside "@type".
-        if not isinstance(json_value, dict) or match_wkt(desc) is not None:
+        # WKTs with a custom JSON representation (strings, arrays, null, etc.)
+        # must be wrapped in a "value" field. Regular messages produce dicts
+        # whose fields are merged alongside "@type".
+        if not isinstance(json_value, dict) or _has_custom_json(desc):
             return {"@type": message.type_url, "value": json_value}
-        json_value["@type"] = message.type_url
-        return json_value
+        return {"@type": message.type_url, **json_value}
 
     def from_json(self, msg: Message, json: JsonValue, opts: FromJsonOptions) -> bool:
         from ._from_json import _read_message  # noqa: PLC0415
@@ -249,7 +249,7 @@ class WktAny:
             err = f"cannot decode {Any._desc.type_name} from JSON: {type_url} is not in the type registry"
             raise ValueError(err)
         message = desc.type()
-        if match_wkt(desc) is not None and "value" in json:
+        if _has_custom_json(desc) and "value" in json:
             _read_message(message, json["value"], opts)
         else:
             json = copy(json)
@@ -450,6 +450,13 @@ def match_wkt(desc: DescMessage) -> WktMatch | None:
             return _match_file_descriptor_set(desc)
         case _:
             return _match_wrapper(desc)
+
+
+def _has_custom_json(desc: DescMessage) -> bool:
+    """Whether a message type has a custom ProtoJSON representation."""
+    wkt = match_wkt(desc)
+    # FileDescriptorSet is the only WKT we have without a custom JSON representation.
+    return wkt is not None and not isinstance(wkt, WktFileDescriptorSet)
 
 
 def is_wkt_value(desc: DescMessage) -> bool:

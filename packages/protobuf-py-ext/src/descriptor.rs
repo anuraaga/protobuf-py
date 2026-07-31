@@ -11,7 +11,7 @@ use pyo3::{
     sync::PyOnceLock,
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyFloat, PyInt, PyList, PyListMethods as _, PyString,
-        PyType,
+        PyStringMethods as _, PyType,
     },
 };
 
@@ -76,7 +76,7 @@ impl WireType {
 }
 
 /// Scalar protobuf value kinds from descriptor.proto.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScalarType {
     // Numbers from descriptor.proto
     /// 64-bit IEEE floating point.
@@ -240,6 +240,14 @@ pub(crate) struct DescEnumInner {
     pub(crate) py_type: Py<PyAny>,
     /// Fully-qualified enum type name.
     pub(crate) type_name: Py<PyString>,
+
+    // Used for JSON.
+    /// Numeric value -> proto value name.
+    pub(crate) names_by_number: HashMap<i32, Py<PyString>>,
+    /// Proto value name -> numeric value.
+    pub(crate) numbers_by_name: HashMap<String, i32>,
+    /// Whether this enum is `google.protobuf.NullValue`.
+    pub(crate) is_null_value: bool,
 }
 
 #[pyclass(from_py_object, frozen)]
@@ -266,9 +274,13 @@ impl DescEnum {
         }
         let type_name = desc
             .getattr(&constants.type_name)?
-            .cast::<PyString>()?
-            .clone()
-            .unbind();
+            .cast_into::<PyString>()?;
+        let is_null_value = type_name.to_str()? == "google.protobuf.NullValue"
+            && desc
+                .getattr(&constants.file)?
+                .getattr(&constants.name)?
+                .extract::<&str>()?
+                .starts_with("google/protobuf/");
         let open = desc.getattr(&constants.open)?.extract::<bool>()?;
         let python_values_any = desc.getattr(&constants.values)?;
         let python_values = python_values_any.cast::<PyList>()?;
@@ -276,16 +288,24 @@ impl DescEnum {
             return Err(PyValueError::new_err("enum must have at least one value"));
         }
         let mut values = HashMap::new();
+        let mut names_by_number = HashMap::new();
+        let mut numbers_by_name = HashMap::new();
         let mut first_value = None;
         for enum_value in python_values.iter() {
             let number = enum_value.getattr(&constants.number)?.extract::<i32>()?;
-            let local_name_any = enum_value.getattr(&constants.local_name)?;
-            let local_name = local_name_any.cast::<PyString>()?;
+            let local_name = enum_value
+                .getattr(&constants.local_name)?
+                .cast_into::<PyString>()?;
             let value = py_type.getattr(local_name)?;
             if first_value.is_none() {
                 first_value = Some(value.clone().unbind());
             }
             values.insert(number, value.unbind());
+            let name = enum_value
+                .getattr(&constants.name)?
+                .cast_into::<PyString>()?;
+            numbers_by_name.insert(name.to_str()?.to_owned(), number);
+            names_by_number.insert(number, name.unbind());
         }
         let zero_value = first_value.unwrap();
 
@@ -295,9 +315,12 @@ impl DescEnum {
                 inner: Arc::new(DescEnumInner {
                     open,
                     values,
+                    names_by_number,
+                    numbers_by_name,
+                    is_null_value,
                     zero_value,
                     py_type: py_type.clone().unbind(),
-                    type_name,
+                    type_name: type_name.unbind(),
                 }),
             },
         )?;
@@ -402,104 +425,38 @@ pub(crate) enum DescFieldValue {
 }
 
 impl DescFieldValue {
-    pub(crate) fn oneof_name(&self) -> Option<OneofName> {
-        match self {
-            DescFieldValue::Scalar { oneof_name, .. }
-            | DescFieldValue::Message { oneof_name, .. }
-            | DescFieldValue::Enum { oneof_name, .. } => oneof_name.clone(),
-            DescFieldValue::List { .. } | DescFieldValue::Map { .. } => None,
-        }
-    }
-}
-
-/// Normalized field descriptor used by parser and serializer builders.
-pub(crate) struct DescField {
-    /// The field's value descriptor.
-    pub(crate) value: DescFieldValue,
-    /// The name of the Python attribute for this field.
-    pub(crate) local_name: Py<PyString>,
-    /// The field number.
-    pub(crate) number: u32,
-    /// The field presence.
-    pub(crate) presence: FieldPresence,
-    /// Whether the field requires explicit presence tracking.
-    pub(crate) requires_presence: bool,
-    /// The wire type.
-    pub(crate) wire_type: WireType,
-}
-
-impl DescField {
-    #[allow(clippy::too_many_lines, reason = "clearer with one function")]
-    fn new(py: Python<'_>, field: &Bound<'_, PyAny>, constants: &Constants) -> PyResult<Self> {
-        if !field.is_instance(constants.types.desc_field.bind(py))? {
-            return Err(PyValueError::new_err("invalid field descriptor"));
-        }
-
-        let py_number_any = field.getattr(&constants.number)?;
-        let py_number = py_number_any.cast::<PyInt>()?;
-        let number = py_number.extract::<u32>()?;
-        let local_name = field
-            .getattr(&constants.local_name)?
-            .cast::<PyString>()?
-            .clone()
-            .unbind();
-        let presence = FieldPresence::try_from_py(&field.getattr(&constants.presence)?)?;
-        let requires_presence = field
-            .getattr(&constants.requires_presence)?
-            .extract::<bool>()?;
-        let desc_value = field.getattr(&constants.value)?;
-
+    /// Builds a normalized field value model from a Python `DescFieldValue`.
+    pub(crate) fn new(
+        py: Python<'_>,
+        desc_value: &Bound<'_, PyAny>,
+        constants: &Constants,
+    ) -> PyResult<Self> {
         if desc_value.is_instance(constants.types.desc_field_value_scalar.bind(py))? {
-            let oneof_name = oneof_local_name(&desc_value, constants)?;
+            let oneof_name = oneof_local_name(desc_value, constants)?;
             let scalar_type = ScalarType::from_py(&desc_value.getattr(&constants.scalar)?)?;
-            Ok(Self {
-                local_name,
-                number,
-                presence,
-                requires_presence,
-                wire_type: scalar_type.wire_type(),
-                value: DescFieldValue::Scalar {
-                    scalar_type,
-                    oneof_name,
-                },
+            Ok(DescFieldValue::Scalar {
+                scalar_type,
+                oneof_name,
             })
         } else if desc_value.is_instance(constants.types.desc_field_value_enum.bind(py))? {
-            let oneof_name = oneof_local_name(&desc_value, constants)?;
+            let oneof_name = oneof_local_name(desc_value, constants)?;
             let py_desc_enum = desc_value.getattr(&constants.enum_)?;
             let desc_enum = DescEnum::new(py, &py_desc_enum, constants)?;
-            Ok(Self {
-                local_name,
-                number,
-                presence,
-                requires_presence,
-                wire_type: WireType::Varint,
-                value: DescFieldValue::Enum {
-                    enum_: desc_enum,
-                    oneof_name,
-                },
+            Ok(DescFieldValue::Enum {
+                enum_: desc_enum,
+                oneof_name,
             })
         } else if desc_value.is_instance(constants.types.desc_field_value_message.bind(py))? {
-            let oneof_name = oneof_local_name(&desc_value, constants)?;
+            let oneof_name = oneof_local_name(desc_value, constants)?;
             let py_desc_message = desc_value.getattr(&constants.message)?;
             let delimited_encoding = desc_value
                 .getattr(&constants.delimited_encoding)?
                 .extract::<bool>()?;
             let desc_message = DescMessage::new(py, &py_desc_message, constants)?;
-            Ok(Self {
-                local_name,
-                number,
-                presence,
-                requires_presence,
-                wire_type: if delimited_encoding {
-                    WireType::StartGroup
-                } else {
-                    WireType::LengthDelimited
-                },
-                value: DescFieldValue::Message {
-                    message: desc_message,
-                    delimited_encoding,
-                    oneof_name,
-                },
+            Ok(DescFieldValue::Message {
+                message: desc_message,
+                delimited_encoding,
+                oneof_name,
             })
         } else if desc_value.is_instance(constants.types.desc_field_value_list.bind(py))? {
             let py_desc_element = desc_value.getattr(&constants.element)?;
@@ -520,26 +477,14 @@ impl DescField {
                     return Err(PyValueError::new_err("invalid list element type"));
                 };
             let packed = desc_value.getattr(&constants.packed)?.extract::<bool>()?;
-            let wire_type = if packed {
-                WireType::LengthDelimited
-            } else {
-                desc_element.wire_type()
-            };
-            Ok(Self {
-                local_name,
-                number,
-                presence,
-                requires_presence,
-                wire_type,
-                value: DescFieldValue::List {
-                    element: desc_element,
-                    packed,
-                },
+            Ok(DescFieldValue::List {
+                element: desc_element,
+                packed,
             })
         } else if desc_value.is_instance(constants.types.desc_field_value_map.bind(py))? {
             let key_type = ScalarType::from_py(&desc_value.getattr(&constants.key)?)?;
             let py_desc_value = desc_value.getattr(&constants.value)?;
-            let desc_value = if py_desc_value.is_instance(constants.types.scalar_type.bind(py))? {
+            let value = if py_desc_value.is_instance(constants.types.scalar_type.bind(py))? {
                 DescSingleValue::Scalar(ScalarType::from_py(&py_desc_value)?)
             } else if py_desc_value.is_instance(constants.types.desc_enum.bind(py))? {
                 DescSingleValue::Enum(DescEnum::new(py, &py_desc_value, constants)?)
@@ -552,21 +497,106 @@ impl DescField {
             } else {
                 return Err(PyValueError::new_err("invalid map value type"));
             };
-            let wire_type = WireType::LengthDelimited;
-            Ok(Self {
-                local_name,
-                number,
-                presence,
-                requires_presence,
-                wire_type,
-                value: DescFieldValue::Map {
-                    key_type,
-                    value: desc_value,
-                },
-            })
+            Ok(DescFieldValue::Map { key_type, value })
         } else {
             Err(PyValueError::new_err("invalid field value type"))
         }
+    }
+
+    /// The wire type implied by this value model.
+    pub(crate) fn wire_type(&self) -> WireType {
+        match self {
+            DescFieldValue::Scalar { scalar_type, .. } => scalar_type.wire_type(),
+            DescFieldValue::Enum { .. } => WireType::Varint,
+            DescFieldValue::Message {
+                delimited_encoding, ..
+            } => {
+                if *delimited_encoding {
+                    WireType::StartGroup
+                } else {
+                    WireType::LengthDelimited
+                }
+            }
+            DescFieldValue::List { element, packed } => {
+                if *packed {
+                    WireType::LengthDelimited
+                } else {
+                    element.wire_type()
+                }
+            }
+            DescFieldValue::Map { .. } => WireType::LengthDelimited,
+        }
+    }
+
+    pub(crate) fn oneof_name(&self) -> Option<OneofName> {
+        match self {
+            DescFieldValue::Scalar { oneof_name, .. }
+            | DescFieldValue::Message { oneof_name, .. }
+            | DescFieldValue::Enum { oneof_name, .. } => oneof_name.clone(),
+            DescFieldValue::List { .. } | DescFieldValue::Map { .. } => None,
+        }
+    }
+}
+
+/// Normalized field descriptor used by parser and serializer builders.
+pub(crate) struct DescField {
+    /// The field's value descriptor.
+    pub(crate) value: DescFieldValue,
+    /// The name of the Python attribute for this field.
+    pub(crate) local_name: Py<PyString>,
+    /// The proto field name (used for JSON output and WKT field matching).
+    pub(crate) name: Py<PyString>,
+    /// The JSON name (defaults to lowerCamelCase; JSON output key).
+    pub(crate) json_name: Py<PyString>,
+    /// The field number.
+    pub(crate) number: u32,
+    /// The field presence.
+    pub(crate) presence: FieldPresence,
+    /// Whether the field requires explicit presence tracking.
+    pub(crate) requires_presence: bool,
+    /// The wire type.
+    pub(crate) wire_type: WireType,
+}
+
+impl DescField {
+    fn new(py: Python<'_>, field: &Bound<'_, PyAny>, constants: &Constants) -> PyResult<Self> {
+        if !field.is_instance(constants.types.desc_field.bind(py))? {
+            return Err(PyValueError::new_err("invalid field descriptor"));
+        }
+
+        let number = field.getattr(&constants.number)?.extract::<u32>()?;
+        let local_name = field
+            .getattr(&constants.local_name)?
+            .cast::<PyString>()?
+            .clone()
+            .unbind();
+        let name = field
+            .getattr(&constants.name)?
+            .cast::<PyString>()?
+            .clone()
+            .unbind();
+        let json_name = field
+            .getattr(&constants.json_name)?
+            .cast::<PyString>()?
+            .clone()
+            .unbind();
+        let presence = FieldPresence::try_from_py(&field.getattr(&constants.presence)?)?;
+        let requires_presence = field
+            .getattr(&constants.requires_presence)?
+            .extract::<bool>()?;
+        let desc_value = field.getattr(&constants.value)?;
+        let value = DescFieldValue::new(py, &desc_value, constants)?;
+        let wire_type = value.wire_type();
+        Ok(Self {
+            value,
+            local_name,
+            name,
+            json_name,
+            number,
+            presence,
+            requires_presence,
+            wire_type,
+        })
     }
 }
 

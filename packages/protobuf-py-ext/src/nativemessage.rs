@@ -5,8 +5,9 @@ use pyo3::{
     pyclass, pyfunction, pymethods,
     sync::PyOnceLock,
     types::{
-        PyAnyMethods as _, PyBytes, PyDict, PyDictMethods as _, PyList, PyListMethods as _,
-        PyString, PyTuple, PyType, PyTypeMethods as _,
+        PyAnyMethods as _, PyByteArray, PyByteArrayMethods as _, PyBytes, PyBytesMethods as _,
+        PyDict, PyDictMethods as _, PyList, PyListMethods as _, PyString, PyStringMethods as _,
+        PyTuple, PyType, PyTypeMethods as _,
     },
 };
 
@@ -14,6 +15,9 @@ use crate::{
     attribute_access::generic_setattr,
     bitset::BitSet,
     constants::Constants,
+    json_parse::{FromJsonOpts, merge_from_json, read_message_from_tree},
+    json_serialize::JsonOpts,
+    json_sink::PyValueSink,
     marshaler::{Member, MessageMarshaler},
     oneof::Oneof,
 };
@@ -119,6 +123,103 @@ impl NativeMessage {
         write_unknown_fields: bool,
     ) -> PyResult<Bound<'py, PyBytes>> {
         NativeMessage::get_marshaler(slf)?.to_binary(py, slf, write_unknown_fields)
+    }
+
+    #[pyo3(signature = (*, registry = None, always_emit_implicit = false, print_enums_as_ints = false, use_proto_field_name = false))]
+    fn to_json(
+        slf: &Bound<'_, Self>,
+        py: Python<'_>,
+        registry: Option<Py<PyAny>>,
+        always_emit_implicit: bool,
+        print_enums_as_ints: bool,
+        use_proto_field_name: bool,
+    ) -> PyResult<Py<PyString>> {
+        let marshaler = NativeMessage::get_marshaler(slf)?;
+        let opts = JsonOpts {
+            always_emit_implicit,
+            print_enums_as_ints,
+            use_proto_field_name,
+            registry,
+        };
+        marshaler.to_json_string(py, slf, &opts)
+    }
+
+    #[classmethod]
+    #[pyo3(signature = (json, *, ignore_unknown_fields = false, registry = None))]
+    fn from_json<'py>(
+        cls: &Bound<'py, PyType>,
+        py: Python<'py>,
+        json: &Bound<'py, PyAny>,
+        ignore_unknown_fields: bool,
+        registry: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, NativeMessage>> {
+        let constants = Constants::get(py)?;
+        let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
+        let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get().clone();
+        let message = marshaler.new_empty_message(py, cls)?;
+        parse_json_into(
+            py,
+            &marshaler,
+            &message,
+            json,
+            ignore_unknown_fields,
+            registry,
+        )?;
+        Ok(message)
+    }
+
+    #[pyo3(signature = (json, *, ignore_unknown_fields = false, registry = None))]
+    fn _merge_from_json(
+        slf: &Bound<'_, Self>,
+        py: Python<'_>,
+        json: &Bound<'_, PyAny>,
+        ignore_unknown_fields: bool,
+        registry: Option<Py<PyAny>>,
+    ) -> PyResult<()> {
+        let marshaler = NativeMessage::get_marshaler(slf)?;
+        parse_json_into(py, &marshaler, slf, json, ignore_unknown_fields, registry)
+    }
+
+    #[pyo3(signature = (*, registry = None, always_emit_implicit = false, print_enums_as_ints = false, use_proto_field_name = false))]
+    fn _to_json_value<'py>(
+        slf: &Bound<'py, Self>,
+        py: Python<'py>,
+        registry: Option<Py<PyAny>>,
+        always_emit_implicit: bool,
+        print_enums_as_ints: bool,
+        use_proto_field_name: bool,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let marshaler = NativeMessage::get_marshaler(slf)?;
+        let opts = JsonOpts {
+            always_emit_implicit,
+            print_enums_as_ints,
+            use_proto_field_name,
+            registry,
+        };
+        let mut sink = PyValueSink::new(py);
+        marshaler.write_json(py, slf, &mut sink, &opts)?;
+        sink.finish()
+    }
+
+    #[classmethod]
+    #[pyo3(signature = (data, *, ignore_unknown_fields = false, registry = None))]
+    fn _from_json_value<'py>(
+        cls: &Bound<'py, PyType>,
+        py: Python<'py>,
+        data: Bound<'py, PyAny>,
+        ignore_unknown_fields: bool,
+        registry: Option<Py<PyAny>>,
+    ) -> PyResult<Bound<'py, NativeMessage>> {
+        let constants = Constants::get(py)?;
+        let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
+        let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get().clone();
+        let message = marshaler.new_empty_message(py, cls)?;
+        let opts = FromJsonOpts {
+            ignore_unknown_fields,
+            registry,
+        };
+        read_message_from_tree(py, &marshaler, &message, data, &opts)?;
+        Ok(message)
     }
 
     fn __setattr__(
@@ -331,11 +432,15 @@ impl NativeMessage {
         self.present.set(field_number, true);
     }
 
+    pub(crate) fn clear_present_field(&self, field_number: u32) {
+        self.present.set(field_number, false);
+    }
+
     pub(super) fn has_present_field(&self, field_number: u32) -> bool {
         self.present.get(field_number)
     }
 
-    fn get_marshaler(slf: &Bound<'_, Self>) -> PyResult<MessageMarshaler> {
+    pub(crate) fn get_marshaler(slf: &Bound<'_, Self>) -> PyResult<MessageMarshaler> {
         if let Some(marshaler) = &slf.get().marshaler {
             Ok(marshaler.clone())
         } else {
@@ -366,6 +471,34 @@ pub(super) fn initialize_message_type(
     let marshaler = MessageMarshaler::new(py, &message_desc, &constants)?.into_pyobject(py)?;
     message_type.setattr(&constants.ext_marshaler, marshaler)?;
     Ok(())
+}
+
+/// Parses JSON (`str`/`bytes`/`bytearray`) into `message`.
+fn parse_json_into<'py>(
+    py: Python<'py>,
+    marshaler: &MessageMarshaler,
+    message: &Bound<'py, NativeMessage>,
+    json: &Bound<'py, PyAny>,
+    ignore_unknown_fields: bool,
+    registry: Option<Py<PyAny>>,
+) -> PyResult<()> {
+    let opts = FromJsonOpts {
+        ignore_unknown_fields,
+        registry,
+    };
+    if let Ok(text) = json.cast::<PyString>() {
+        merge_from_json(py, marshaler, message, text.to_str()?.as_bytes(), &opts)
+    } else if let Ok(bytes) = json.cast::<PyBytes>() {
+        merge_from_json(py, marshaler, message, bytes.as_bytes(), &opts)
+    } else if let Ok(bytearray) = json.cast::<PyByteArray>() {
+        let owned = bytearray.to_vec();
+        merge_from_json(py, marshaler, message, &owned, &opts)
+    } else {
+        Err(PyTypeError::new_err(format!(
+            "json must be str, bytes, or bytearray, got {}",
+            json.get_type()
+        )))
+    }
 }
 
 fn deepcopy_list(
