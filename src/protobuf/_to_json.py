@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from base64 import b64encode
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -208,9 +209,16 @@ def _message_to_json_value(message: Message, opts: ToJsonOptions) -> JsonValue:
     return result
 
 
+# PyPy's json.dumps with ensure_ascii=False has a bug that sometimes
+# returns corrupted UTF-8 strings.
+_ENSURE_ASCII = sys.implementation.name == "pypy"
+
+
 def to_json(message: Message, opts: ToJsonOptions) -> str:
     return json.dumps(
-        _message_to_json_value(message, opts), separators=(",", ":"), ensure_ascii=False
+        _message_to_json_value(message, opts),
+        separators=(",", ":"),
+        ensure_ascii=_ENSURE_ASCII,
     )
 
 

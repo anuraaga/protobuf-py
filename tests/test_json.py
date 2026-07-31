@@ -648,3 +648,14 @@ def test_closed_enum_from_json_ignoring_unknown_fields() -> None:
         json.dumps({"closedColorField": 99}), ignore_unknown_fields=True
     )
     assert msg.closed_color_field == ClosedColor.UNSPECIFIED
+
+
+def test_to_json_del_before_multibyte_char() -> None:
+    # Regression test for a PyPy bug found by test_property.py: json.dumps
+    # with ensure_ascii=False returns a str with a corrupted internal UTF-8
+    # buffer when a string contains "\x7f" followed by a multi-byte
+    # character.
+    msg = Scalars(string_field="\x7f\U000625eb")
+    text = msg.to_json()
+    assert text.encode("utf-8").decode("utf-8") == text
+    assert Scalars.from_json(text) == msg
