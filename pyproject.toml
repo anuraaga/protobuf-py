@@ -114,6 +114,7 @@ sequence = [
   { cmd = "uv version --package protobuf-py-ext --bump=${_version}" },
   { cmd = "uv version --package protoc-gen-py --bump=${_version}" },
   { shell = "uv add --raw protobuf-py==$(uv version --short) --package protoc-gen-py" },
+  "bootstrap",
   "generate",
 ]
 args = [
