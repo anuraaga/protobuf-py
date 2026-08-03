@@ -361,6 +361,7 @@ addopts = [
 # Turn all warnings into errors
 filterwarnings = ["error"]
 norecursedirs = [".*", "_gen", "gen"]
+strict_xfail = true
 testpaths = ["src/protobuf", "tests"]
 
 ## Ruff

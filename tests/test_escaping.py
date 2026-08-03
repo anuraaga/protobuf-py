@@ -45,27 +45,18 @@ if TYPE_CHECKING:
         "list/bar.proto",
         "class/bar.proto",
         "match/bar.proto",
-        pytest.param("0x.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a b.bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a-b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a+b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a.b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param(
-            "__init__/foo.proto", marks=pytest.mark.xfail(reason="not escaped")
-        ),
-        pytest.param("_foo.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param(
-            "__pycache__/foo.proto", marks=pytest.mark.xfail(reason="not escaped")
-        ),
-        pytest.param("__init__.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("café☕.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param(
-            "!\"#$%&'()*,;=?@[\\]^`{|}~.proto",
-            marks=pytest.mark.xfail(reason="not escaped"),
-        ),
-        pytest.param(
-            "__main__/foo.proto", marks=pytest.mark.xfail(reason="not escaped")
-        ),
+        pytest.param("0x.proto"),
+        pytest.param("a b.bar.proto"),
+        pytest.param("a-b/bar.proto"),
+        pytest.param("a+b/bar.proto"),
+        pytest.param("a.b/bar.proto"),
+        pytest.param("__init__/foo.proto"),
+        pytest.param("_foo.proto"),
+        pytest.param("__pycache__/foo.proto"),
+        pytest.param("__init__.proto"),
+        pytest.param("café☕.proto"),
+        pytest.param("!\"#$%&'()*,;=?@[\\]^`{|}~.proto"),
+        pytest.param("__main__/foo.proto"),
     ],
 )
 def test_module_name(generated_names: _Generated, proto_file_path: str) -> None:
@@ -130,11 +121,11 @@ def test_module_name_collision(
         "example.proto",
         "foo/bar.proto",
         "__init__.proto",
-        pytest.param("a-b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a+b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a b.bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("a.b/bar.proto", marks=pytest.mark.xfail(reason="not escaped")),
-        pytest.param("café☕.proto", marks=pytest.mark.xfail(reason="not escaped")),
+        pytest.param("a-b/bar.proto"),
+        pytest.param("a+b/bar.proto"),
+        pytest.param("a b.bar.proto"),
+        pytest.param("a.b/bar.proto"),
+        pytest.param("café☕.proto"),
     ],
 )
 def test_file_descriptor_var_name(
@@ -148,7 +139,6 @@ def test_file_descriptor_var_name(
     assert not keyword.iskeyword(name), f"file descriptor var {name!r} is a keyword"
 
 
-@pytest.mark.xfail(reason="not escaped")
 def test_generated_escaping_is_valid_python() -> None:
     """The generated escaping_pb.py must be valid Python syntax."""
     # TODO #322: once escaping is implemented, remove this test and let pyright catch regressions
