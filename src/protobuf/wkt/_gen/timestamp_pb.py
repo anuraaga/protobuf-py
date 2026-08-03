@@ -124,7 +124,6 @@ class Timestamp(Message[_TimestampFields], TimestampMixin):
     http://joda-time.sourceforge.net/apidocs/org/joda/time/format/ISODateTimeFormat.html#dateTime()
     ) to obtain a formatter capable of generating timestamps in this format.
 
-
     ```proto
     message google.protobuf.Timestamp
     ```

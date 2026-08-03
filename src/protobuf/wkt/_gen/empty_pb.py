@@ -41,7 +41,6 @@ class Empty(Message[_EmptyFields]):
           rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);
         }
 
-
     ```proto
     message google.protobuf.Empty
     ```
