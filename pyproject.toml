@@ -1,6 +1,6 @@
 [project]
 name = "protobuf-py"
-version = "0.2.0"
+version = "0.3.0"
 description = "Idiomatic Protocol Buffers for Python."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -105,6 +105,22 @@ sequence = [
   "format",
   "lint",
   "bootstrap",
+]
+
+[tool.poe.tasks.bump]
+help = "Bump the project version"
+sequence = [
+  { cmd = "uv version --bump=${_version}" },
+  { cmd = "uv version --package protobuf-py-ext --bump=${_version}" },
+  { cmd = "uv version --package protoc-gen-py --bump=${_version}" },
+  { shell = "uv add --raw protobuf-py==$(uv version --short) --package protoc-gen-py" },
+]
+args = [
+  { name = "_version", required = true, help = "The type of version bump to apply", choices = [
+    "patch",
+    "minor",
+    "major"
+  ] }
 ]
 
 ## Generate
