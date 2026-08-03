@@ -54,8 +54,20 @@ if TYPE_CHECKING:
         pytest.param("_foo.proto"),
         pytest.param("__pycache__/foo.proto"),
         pytest.param("__init__.proto"),
-        pytest.param("café☕.proto"),
-        pytest.param("!\"#$%&'()*,;=?@[\\]^`{|}~.proto"),
+        pytest.param(
+            "café☕.proto",
+            marks=pytest.mark.xfail(
+                sys.platform == "win32",
+                reason="protoc cannot handle non-ASCII filenames on Windows",
+            ),
+        ),
+        pytest.param(
+            "!\"#$%&'()*,;=?@[\\]^`{|}~.proto",
+            marks=pytest.mark.xfail(
+                sys.platform == "win32",
+                reason="protoc cannot handle non-ASCII filenames on Windows",
+            ),
+        ),
         pytest.param("__main__/foo.proto"),
     ],
 )
@@ -125,7 +137,13 @@ def test_module_name_collision(
         pytest.param("a+b/bar.proto"),
         pytest.param("a b.bar.proto"),
         pytest.param("a.b/bar.proto"),
-        pytest.param("café☕.proto"),
+        pytest.param(
+            "café☕.proto",
+            marks=pytest.mark.xfail(
+                sys.platform == "win32",
+                reason="protoc cannot handle non-ASCII filenames on Windows",
+            ),
+        ),
     ],
 )
 def test_file_descriptor_var_name(
