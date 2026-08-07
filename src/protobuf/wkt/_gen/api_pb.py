@@ -107,7 +107,6 @@ class Api(Message[_ApiFields]):
             be omitted. Zero major versions must only be used for
             experimental, non-GA interfaces.
 
-
             ```proto
             string version = 4;
             ```

@@ -16,6 +16,12 @@
 
 from __future__ import annotations
 
+from protobuf._sanitization import (
+    escape_identifier,
+    escape_public_identifier,
+    python_keywords,
+)
+
 from ._file import File
 from ._ident import Ident, Module
 from ._run import run
@@ -27,8 +33,11 @@ __all__ = [
     "Ident",
     "Module",
     "Schema",
+    "escape_identifier",
+    "escape_public_identifier",
     "get_comments",
     "get_package_comments",
     "get_syntax_comments",
+    "python_keywords",
     "run",
 ]

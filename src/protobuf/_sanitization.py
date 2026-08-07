@@ -43,7 +43,7 @@ def escape_proto_module_component(ident: str, *, escape_with_hash: bool = False)
 
     if component[0].isdigit():
         component = f"_{component}"
-    component = escape_public_identifier(component, PYTHON_KEYWORDS)
+    component = escape_public_identifier(component, _PYTHON_KEYWORDS)
 
     # The _pb suffix is reserved for generated proto modules (e.g. foo.proto -> foo_pb).
     # We must ensure the mapping is injective, so any component whose base already ends
@@ -54,7 +54,7 @@ def escape_proto_module_component(ident: str, *, escape_with_hash: bool = False)
     return component
 
 
-PYTHON_KEYWORDS: Final[frozenset[str]] = frozenset(
+_PYTHON_KEYWORDS: Final[frozenset[str]] = frozenset(
     {
         "False",
         "None",
@@ -94,6 +94,17 @@ PYTHON_KEYWORDS: Final[frozenset[str]] = frozenset(
     }
 )
 
+
+def python_keywords() -> frozenset[str]:
+    """Return the default set of Python keywords.
+
+    These are the hard keywords that must be escaped to generate usable Python code.
+    This list is a the collection of all keywords across Python versions supported by
+    protobuf-py.
+    """
+    return _PYTHON_KEYWORDS
+
+
 # These names are not allowed for class names and escaped. Because they can be message
 # field names as well, the escaped form is reserved for message attributes but not the
 # unescaped form to prevent overescaping.
@@ -112,14 +123,14 @@ _RESERVED_MESSAGE_ATTRS: Final[frozenset[str]] = frozenset(
         "desc",
         "self",
     }
-    | PYTHON_KEYWORDS
+    | _PYTHON_KEYWORDS
 )
 _RESERVED_ENUM_ATTRS: Final[frozenset[str]] = frozenset(
-    {"name", "value", "mro", "desc"} | PYTHON_KEYWORDS
+    {"name", "value", "mro", "desc"} | _PYTHON_KEYWORDS
 )
 
 _RESERVED_CLASS_NAMES: Final[frozenset[str]] = frozenset(
-    _DISALLOWED_CLASS_NAMES | PYTHON_KEYWORDS | _RESERVED_MESSAGE_ATTRS
+    _DISALLOWED_CLASS_NAMES | _PYTHON_KEYWORDS | _RESERVED_MESSAGE_ATTRS
 )
 
 
@@ -221,6 +232,6 @@ def escape_identifier(ident: str) -> str:
         >>> escape_identifier("normal")
         'normal'
     """
-    if ident.rstrip("_") in PYTHON_KEYWORDS:
+    if ident.rstrip("_") in _PYTHON_KEYWORDS:
         return ident + "_"
     return ident

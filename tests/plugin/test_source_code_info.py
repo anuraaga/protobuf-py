@@ -44,6 +44,7 @@ package testcomments;
     ]
     assert comments.leading == " Comment before syntax.\n"
     assert comments.trailing == " Comment next to syntax.\n"
+    assert comments.lines() == ["Comment before syntax.", "", "Comment next to syntax."]
 
 
 def test_get_package_comments(protoc: Protoc) -> None:
@@ -67,6 +68,11 @@ message MessageWithComments {}
     assert comments.leading_detached == [" Comment after syntax.\n"]
     assert comments.leading == " Comment before package.\n"
     assert comments.trailing == " Comment next to package.\n"
+    assert comments.lines() == [
+        "Comment before package.",
+        "",
+        "Comment next to package.",
+    ]
 
 
 def test_get_comments_for_messages(protoc: Protoc) -> None:
@@ -89,6 +95,7 @@ message MessageWithComments {}
     ]
     assert comments.leading == " Comment before message.\n"
     assert comments.trailing is None
+    assert comments.lines() == ["Comment before message."]
 
 
 def test_get_comments_for_fields(protoc: Protoc) -> None:
@@ -121,3 +128,11 @@ message MessageWithComments {
         " Comment before field with 5 lines:\n line 2, next is empty\n\n line 4, next is empty\n\n"
     )
     assert comments.trailing == " Comment next to field.\n"
+    assert comments.lines() == [
+        "Comment before field with 5 lines:",
+        "line 2, next is empty",
+        "",
+        "line 4, next is empty",
+        "",
+        "Comment next to field.",
+    ]

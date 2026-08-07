@@ -779,6 +779,32 @@ class DescComments:
     trailing: str | None
     source_path: Sequence[int]
 
+    def lines(self) -> list[str]:
+        """Return comment lines suitable for output in generated code.
+
+        Lines are formatted assuming common indentation and conventions in proto files,
+        with a newline between leading and trailing comments when both present.
+
+        Most comments should render well with this - if needing more control, use the raw
+        comment attributes instead.
+
+        While formatting should be generally stable across versions, it is not guaranteed.
+        """
+        lines = []
+        if self.leading:
+            # Comments in protobuf often start with a space after the delimiter,
+            # so we remove it. We don't strip all leading whitespace to preserve other indentation.
+            lines.extend(
+                line.removeprefix(" ") for line in self.leading.rstrip().splitlines()
+            )
+        if self.trailing:
+            if lines:
+                lines.append("")
+            lines.extend(
+                line.removeprefix(" ") for line in self.trailing.rstrip().splitlines()
+            )
+        return lines
+
 
 def _get_wkt_mixin(desc: DescMessage) -> type | None:
     """Return the WKT mixin class for `desc`, or None if it has no mixin."""

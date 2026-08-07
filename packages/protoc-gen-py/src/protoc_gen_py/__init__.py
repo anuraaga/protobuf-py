@@ -471,21 +471,12 @@ def _generate_docstring(
     | DescOneof
     | DescEnumValue,
 ) -> None:
-    comments = get_comments(desc)
-    text = ""
-    if comments.leading:
-        text += comments.leading.removesuffix("\n")
-    if comments.trailing:
-        if len(text) > 0:
-            text += "\n\n"
-        text += comments.trailing.removesuffix("\n")
-    if len(text) > 0:
-        text += "\n\n"
-
-    for line in text.splitlines():
-        # Comments in protobuf often start with a space, this
-        # leads to weird indentation in the generated docstring, so we remove it.
-        f.print(line.removeprefix(" "))
+    comments = get_comments(desc).lines()
+    if comments:
+        for line in comments:
+            f.print(line)
+        # Separate comments from provenance
+        f.print()
     provenance = _provenance_text(desc)
     f.print("```proto")
     f.print(provenance)
