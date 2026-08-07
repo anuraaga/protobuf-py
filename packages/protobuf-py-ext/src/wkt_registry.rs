@@ -1,7 +1,7 @@
 //! Central registry for well-known types to handle special JSON marshaling.
 //! Closely mirrors `_wkt_registry.py`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use buffa::json_helpers::wkt as buffa_wkt;
 use bytes::Bytes;
@@ -370,12 +370,8 @@ impl WktStruct {
             .fields
             .get(py, message.as_any())?
             .cast_into::<PyDict>()?;
-        // Duplicates are detected on the raw JSON key.
-        let mut raw_keys: HashSet<Box<str>> = HashSet::new();
+        // Duplicate keys use last-in-wins semantics (per the ProtoJSON spec).
         src.for_each_object_key(|key, src| {
-            if !raw_keys.insert(key.into()) {
-                return Err(PyValueError::new_err(format!("duplicate key: {key}")));
-            }
             let value_msg =
                 value_marshaler.new_empty_message(py, self.value.get_python_type(py))?;
             read_message(value_marshaler, &value_msg, src, opts, depth + 1)?;

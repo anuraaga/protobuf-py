@@ -39,6 +39,8 @@ def run(output_dir: Path, command: list[str], test: str = "") -> None:
         "--enforce_recommended",
         "--maximum_edition",
         maximum_supported_edition.name.removeprefix("EDITION_"),
+        "--failure_list",
+        output_dir / "failing_tests.txt",
     ]
     if test:
         args.extend(["--test", test])

@@ -461,13 +461,17 @@ def test_struct_from_json_error(json_str: str) -> None:
         Struct.from_json(json_str)
 
 
-@pytest.mark.parametrize(
-    ("json_str", "key"),
-    [('{"a": 1, "a": 2}', "a"), ('{"outer": {"b": 1, "b": 2}}', "b")],
-)
-def test_struct_from_json_duplicate_key(json_str: str, key: str) -> None:
-    with pytest.raises(ValueError, match=f"duplicate key: {key}"):
-        Struct.from_json(json_str)
+def test_struct_from_json_duplicate_key() -> None:
+    msg = Struct.from_json('{"a": 1, "a": 2}')
+    assert msg.fields["a"] == Value(kind=Oneof(field="number_value", value=2))
+
+
+def test_struct_from_json_duplicate_key_inner() -> None:
+    msg = Struct.from_json('{"outer": {"b": 1, "b": 2}}')
+    assert msg.fields["outer"].kind == Oneof(
+        field="struct_value",
+        value=Struct(fields={"b": Value(kind=Oneof(field="number_value", value=2))}),
+    )
 
 
 @pytest.mark.parametrize("json_str", ['"abc"', '{"a": 1}'])
