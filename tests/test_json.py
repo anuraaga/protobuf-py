@@ -640,8 +640,7 @@ def test_from_json_duplicate_list_field_replaces(first: str, second: str) -> Non
 
 
 @pytest.mark.parametrize(
-    ("first", "second"),
-    [("mapField", "mapField"), ("map_field", "mapField")],
+    ("first", "second"), [("mapField", "mapField"), ("map_field", "mapField")]
 )
 def test_from_json_duplicate_map_field_replaces(first: str, second: str) -> None:
     msg = MixedFields.from_json(f'{{"{first}": {{"x": 1}}, "{second}": {{"y": 2}}}}')
