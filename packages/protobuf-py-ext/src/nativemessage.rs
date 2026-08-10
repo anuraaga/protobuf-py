@@ -305,6 +305,37 @@ impl NativeMessage {
         Ok(new)
     }
 
+    fn __eq__(
+        slf: &Bound<'_, Self>,
+        py: Python<'_>,
+        other: &Bound<'_, NativeMessage>,
+    ) -> PyResult<bool> {
+        if !other.is_instance(&slf.get_type())? {
+            return Ok(false);
+        }
+        let marshaler = NativeMessage::get_marshaler(slf)?;
+
+        for member in &marshaler.members {
+            if let Some(field_number) = member.field_number {
+                let slf_present = slf.get().has_present_field(field_number);
+                let other_present = other.get().has_present_field(field_number);
+                if slf_present != other_present {
+                    return Ok(false);
+                }
+                if !slf_present {
+                    continue;
+                }
+            }
+            let slf_value = member.attr.get(py, slf)?;
+            let other_value = member.attr.get(py, &other)?;
+            if !slf_value.is(&other_value) && !slf_value.eq(&other_value)? {
+                return Ok(false);
+            }
+        }
+
+        Ok(true)
+    }
+
     fn _merge_from(
         slf: &Bound<'_, Self>,
         py: Python<'_>,
