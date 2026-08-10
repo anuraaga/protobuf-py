@@ -391,6 +391,32 @@ class TestBench:
                 message.ParseFromString(payload)
                 benchmark(deepcopy, message)
 
+    @pytest.mark.parametrize(("_id", "typename", "payload"), all_external_cases)
+    def test_eq(
+        self,
+        _id: str,
+        typename: str,
+        payload: bytes,
+        impl: Impl,
+        registry: Registry,
+        benchmark: BenchmarkFixture,
+    ) -> None:
+        match impl:
+            case "bufbuild-python" | "bufbuild-rust":
+                message_desc = registry.message(typename)
+                assert message_desc is not None, (
+                    f"Message {typename} not found in registry"
+                )
+                message = message_desc.type().from_binary(payload)
+                other = message_desc.type().from_binary(payload)
+                benchmark(message.__eq__, other)
+            case "google-python" | "google-upb":
+                message = _get_google_protobuf_message_instance(typename, impl)
+                message.ParseFromString(payload)
+                other = _get_google_protobuf_message_instance(typename, impl)
+                other.ParseFromString(payload)
+                benchmark(message.__eq__, other)
+
     class TestAttrAccess:
         _scalar_cases: ClassVar[list] = [
             pytest.param(

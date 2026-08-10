@@ -100,6 +100,18 @@ def test_not_equal(
     assert b != a
 
 
+def test_different_types() -> None:
+    a = MixedFields()
+    b = Scalars()
+    assert a != b
+    assert a.__eq__(b) is False
+    assert b != a
+    assert b.__eq__(a) is False
+
+    assert a.__eq__("hello") is NotImplemented
+    assert b.__eq__(42) is NotImplemented
+
+
 def test_eq_unknown_fields_ignored() -> None:
     a = MixedFields(explicit_field=1)
     b = MixedFields(explicit_field=1)

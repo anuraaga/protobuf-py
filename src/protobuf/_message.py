@@ -559,8 +559,10 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
 
         Extensions and unknown fields are not considered in the comparison.
         """
-        if not isinstance(other, type(self)):
+        if not isinstance(other, Message):
             return NotImplemented
+        if not isinstance(other, type(self)):
+            return False
         for field in self._desc.fields:
             self_set = field in self
             other_set = field in other
