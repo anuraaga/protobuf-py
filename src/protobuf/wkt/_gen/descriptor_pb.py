@@ -22,7 +22,7 @@ from __future__ import annotations
 from typing import Literal, NoReturn, TYPE_CHECKING, TypeAlias
 
 from protobuf import Enum
-from protobuf._codegen import Message, boot, unset
+from protobuf._boot import Message, boot, unset
 from protobuf.wkt._mixin import FileDescriptorSetMixin
 
 if TYPE_CHECKING:
