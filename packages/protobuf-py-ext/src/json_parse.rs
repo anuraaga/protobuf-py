@@ -4,7 +4,7 @@
 //! reference exactly where practical. Registry-backed Any/extension handling
 //! calls the Python `Registry` object directly (never ported to Rust).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use base64::Engine as _;
 use pyo3::{
@@ -109,50 +109,28 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         )));
     }
 
-    // A known key can only be the field's proto name or its JSON name, so we
-    // don't need to actually copy the JSON string input itself to track.
-    let mut seen_fields: HashMap<u32, bool> = HashMap::new();
-    let mut seen_oneofs: HashMap<String, String> = HashMap::new();
-
+    // Duplicate keys are accepted with last-in-wins semantics (per the
+    // ProtoJSON spec). Because we are streaming values from the JSON, we do not
+    // get "pre-collapsed" duplicates like `json.loads` would provide. So we keep
+    // track of seen field numbers and reset to the default when encountering one.
+    // This also accounts for duplicates with different JSON names.
+    let mut seen: HashSet<u32> = HashSet::new();
     src.for_each_object_key(|key, src| {
-        let entry = marshaler.json_names.get(key).copied();
-        if let Some(entry) = entry {
-            let number = entry.number;
+        if let Some(&number) = marshaler.json_names.get(key) {
             let parser = marshaler
                 .parser
                 .field(number)
                 .ok_or_else(|| PyValueError::new_err("field table lookup failed"))?;
-            if let Some(&prev_is_proto_name) = seen_fields.get(&number) {
-                if prev_is_proto_name == entry.is_proto_name {
-                    // Same key twice.
-                    return Err(PyValueError::new_err(format!("duplicate key: {key}")));
-                }
-                let prev = if prev_is_proto_name {
-                    &parser.name
-                } else {
-                    &parser.json_name
-                };
-                return Err(PyValueError::new_err(format!(
-                    "field set multiple times by {} and {key}",
-                    prev.bind(py).to_str()?
-                )));
+            // A scalar oneof field set to `null` leaves the oneof unset.
+            if parser.oneof_name.is_some()
+                && matches!(parser.value, FieldParserValue::Scalar(_))
+                && src.peek()? == JsonKind::Null
+            {
+                src.next_null()?;
+                return Ok(());
             }
-            seen_fields.insert(number, entry.is_proto_name);
-
-            if let Some(oneof_name) = &parser.oneof_name {
-                let is_scalar = matches!(parser.value, FieldParserValue::Scalar(_));
-                if is_scalar && src.peek()? == JsonKind::Null {
-                    src.next_null()?;
-                    return Ok(());
-                }
-                let oneof_local = oneof_name.bind(py).to_str()?;
-                let field_proto_name = parser.name.bind(py).to_str()?;
-                if let Some(prev) = seen_oneofs.get(oneof_local) {
-                    return Err(PyValueError::new_err(format!(
-                        "oneof set multiple times by {prev} and {field_proto_name}"
-                    )));
-                }
-                seen_oneofs.insert(oneof_local.to_owned(), field_proto_name.to_owned());
+            if merges_on_duplicate(parser) && !seen.insert(number) {
+                reset_duplicate_field(py, parser, message)?;
             }
             read_field(marshaler, parser, message, src, opts, depth)?;
         } else {
@@ -161,6 +139,36 @@ fn read_generic_object<'py, R: JsonSource<'py>>(
         Ok(())
     })?;
     Ok(())
+}
+
+/// Whether a repeat of this field merges into the value already read (repeated
+/// appends, maps add keys, singular messages merge fields) and so must be reset
+/// for last-in-wins.
+fn merges_on_duplicate(parser: &FieldParser) -> bool {
+    match &parser.type_ {
+        ParserFieldType::List { .. } | ParserFieldType::Map { .. } => true,
+        ParserFieldType::Singular { oneof_attr, .. } => {
+            oneof_attr.is_none() && matches!(parser.value, FieldParserValue::Message { .. })
+        }
+    }
+}
+
+/// Resets a field to its default before a duplicate JSON key is applied, so the
+/// later occurrence replaces the earlier one rather than merging into it.
+fn reset_duplicate_field<'py>(
+    py: Python<'py>,
+    parser: &FieldParser,
+    message: &Bound<'py, NativeMessage>,
+) -> PyResult<()> {
+    match &parser.type_ {
+        ParserFieldType::List { .. } => parser.attr.set(message.as_any(), &PyList::empty(py)),
+        ParserFieldType::Map { .. } => parser.attr.set(message.as_any(), &PyDict::new(py)),
+        ParserFieldType::Singular { .. } => {
+            parser.attr.set(message.as_any(), py.None().bind(py))?;
+            message.get().clear_present_field(parser.number);
+            Ok(())
+        }
+    }
 }
 
 fn read_field<'py, R: JsonSource<'py>>(
@@ -359,14 +367,7 @@ fn read_map<'py, R: JsonSource<'py>>(
         .attr
         .get(py, message.as_any())?
         .cast_into::<PyDict>()?;
-    // Duplicates are detected on the raw JSON key,
-    // not the parsed map key: e.g. int keys "3" and "3.0" are distinct raw
-    // keys, so the last entry wins rather than erroring.
-    let mut raw_keys: HashSet<Box<str>> = HashSet::new();
     src.for_each_object_key(|key, src| {
-        if !raw_keys.insert(key.into()) {
-            return Err(PyValueError::new_err(format!("duplicate key: {key}")));
-        }
         let map_key = read_map_key(py, &ctx, key_type, key)?;
         if let Some(value) = read_container_item(&ctx, &value_parser.value, src, opts, depth, true)?
         {

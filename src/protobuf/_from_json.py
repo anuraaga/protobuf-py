@@ -28,9 +28,7 @@ from ._descriptors import (
     DescFieldValueMap,
     DescFieldValueMessage,
     DescFieldValueScalar,
-    DescFieldValueSingular,
     DescMessage,
-    DescOneof,
     ScalarType,
 )
 from ._oneof import Oneof
@@ -112,24 +110,23 @@ def _read_message(msg: Message, json: JsonValue, opts: FromJsonOptions) -> None:
         raise TypeError(err)
 
     desc = msg.__class__._desc
-    seen_oneofs = dict[DescOneof, DescField]()
-    seen_fields = dict[DescField, str]()
+    # A field can be named twice by its proto name and its JSON name (identical
+    # keys are already collapsed to the last value by json.loads). Duplicates
+    # are last-in-wins, so reset the field before applying a later occurrence.
+    seen = set[DescField]()
     for key, value in json.items():
         field = desc._fields_by_json_name.get(key)
         if field:
-            if seen := seen_fields.get(field):
-                err = f"field set multiple times by {seen} and {key}"
-                raise ValueError(err)
-            seen_fields[field] = key
             field_value = field.value
-            if isinstance(field_value, DescFieldValueSingular) and field_value.oneof:
-                if value is None and isinstance(field_value, DescFieldValueScalar):
-                    continue
-                seen = seen_oneofs.get(field_value.oneof)
-                if seen:
-                    err = f"oneof set multiple times by {seen.name} and {field.name}"
-                    raise ValueError(err)
-                seen_oneofs[field_value.oneof] = field
+            if (
+                isinstance(field_value, DescFieldValueScalar)
+                and field_value.oneof
+                and value is None
+            ):
+                continue
+            if field in seen:
+                _reset_duplicate_field(msg, field)
+            seen.add(field)
             _read_field(msg, field, value, opts)
         else:
             extension = None
@@ -146,6 +143,17 @@ def _read_message(msg: Message, json: JsonValue, opts: FromJsonOptions) -> None:
                     f"cannot decode {desc.type_name} from JSON: key: '{key}' is unknown"
                 )
                 raise ValueError(err)
+
+
+def _reset_duplicate_field(msg: Message, field: DescField) -> None:
+    """Clears a field so a duplicate JSON key replaces it instead of merging."""
+    match field.value:
+        case DescFieldValueList() | DescFieldValueMap():
+            msg._get_member(field).clear()
+        case DescFieldValueMessage() if not field.value.oneof:
+            msg._del_member(field)
+        case _:
+            pass
 
 
 def _read_field(
@@ -632,24 +640,6 @@ def _value_from_json(
             msg.kind = Oneof("struct_value", struct)
         case _:
             assert_never(json)
-
-
-def _no_duplicates(pairs: list[tuple[str, JsonValue]]) -> dict[str, JsonValue]:
-    """Reject duplicate JSON keys at parse time via json.loads object_pairs_hook.
-
-    This is needed in addition to the seen_fields check in _read_message
-    because a single proto field can have two distinct JSON keys (its proto
-    name and its json_name). seen_fields catches that case, but it cannot
-    catch two identical JSON keys that map to the same dict entry, since
-    Python's default JSON parser silently keeps only the last value.
-    """
-    obj: dict[str, JsonValue] = {}
-    for k, v in pairs:
-        if k in obj:
-            msg = f"duplicate key: {k}"
-            raise ValueError(msg)
-        obj[k] = v
-    return obj
 
 
 def message_from_json_value(

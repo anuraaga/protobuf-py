@@ -685,13 +685,9 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         from json import loads as parse_json  # noqa: PLC0415
 
         # Needs to be lazy import since JSON specially handles many WKTs.
-        from ._from_json import (  # noqa: PLC0415
-            FromJsonOptions,
-            _no_duplicates,
-            _read_message,
-        )
+        from ._from_json import FromJsonOptions, _read_message  # noqa: PLC0415
 
-        json_value = parse_json(json, object_pairs_hook=_no_duplicates)
+        json_value = parse_json(json)
         opts = FromJsonOptions(
             ignore_unknown_fields=ignore_unknown_fields, registry=registry
         )

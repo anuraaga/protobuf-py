@@ -591,26 +591,23 @@ def test_from_json_map_error(
 
 
 def test_from_json_oneof_set_multiple_times() -> None:
-    with pytest.raises(ValueError, match="oneof set multiple times"):
-        MixedFields.from_json(json.dumps({"oneofField": "a", "oneofBaz": 1}))
+    msg = MixedFields.from_json(json.dumps({"oneofField": "a", "oneofBaz": 1}))
+    assert msg.oneof_group == Oneof(field="oneof_baz", value=1)
 
 
 def test_from_json_duplicate_key() -> None:
-    with pytest.raises(ValueError, match="duplicate key: scalarFieldJsonName"):
-        JsonNames.from_json('{"scalarFieldJsonName": 1, "scalarFieldJsonName": 2}')
+    msg = JsonNames.from_json('{"scalarFieldJsonName": 1, "scalarFieldJsonName": 2}')
+    assert msg.scalar_field == 2
 
 
 def test_from_json_field_set_multiple_times() -> None:
-    with pytest.raises(
-        ValueError,
-        match="field set multiple times by scalar_field and scalarFieldJsonName",
-    ):
-        JsonNames.from_json('{"scalar_field": 1, "scalarFieldJsonName": 2}')
+    msg = JsonNames.from_json('{"scalar_field": 1, "scalarFieldJsonName": 2}')
+    assert msg.scalar_field == 2
 
 
 def test_from_json_map_duplicate_key() -> None:
-    with pytest.raises(ValueError, match="duplicate key: a"):
-        Maps.from_json('{"stringToString": {"a": "1", "a": "2"}}')
+    msg = Maps.from_json('{"stringToString": {"a": "1", "a": "2"}}')
+    assert msg.string_to_string == {"a": "2"}
 
 
 def test_from_json_map_distinct_raw_keys_not_duplicate() -> None:
@@ -618,6 +615,36 @@ def test_from_json_map_distinct_raw_keys_not_duplicate() -> None:
     # same int32 map key but are distinct raw keys, so the last entry wins.
     msg = Maps.from_json('{"int32ToInt32": {"3": 1, "3.0": 2}}')
     assert msg.int32_to_int32 == {3: 2}
+
+
+# A duplicated field replaces the earlier value rather than merging into it.
+# The key pair is parametrized because identical keys are collapsed by
+# json.loads before the pure-Python parser runs, while the proto name and JSON
+# name of one field reach both parsers as two distinct keys.
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("messageField", "messageField"), ("message_field", "messageField")],
+)
+def test_from_json_duplicate_message_field_replaces(first: str, second: str) -> None:
+    msg = MixedFields.from_json(f'{{"{first}": {{"value": "a"}}, "{second}": {{}}}}')
+    assert msg.message_field == MixedFields.Bar()
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [("repeatedField", "repeatedField"), ("repeated_field", "repeatedField")],
+)
+def test_from_json_duplicate_list_field_replaces(first: str, second: str) -> None:
+    msg = MixedFields.from_json(f'{{"{first}": ["a"], "{second}": ["b"]}}')
+    assert msg.repeated_field == ["b"]
+
+
+@pytest.mark.parametrize(
+    ("first", "second"), [("mapField", "mapField"), ("map_field", "mapField")]
+)
+def test_from_json_duplicate_map_field_replaces(first: str, second: str) -> None:
+    msg = MixedFields.from_json(f'{{"{first}": {{"x": 1}}, "{second}": {{"y": 2}}}}')
+    assert msg.map_field == {"y": 2}
 
 
 def _test_roundtrip(
