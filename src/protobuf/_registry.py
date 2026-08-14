@@ -75,8 +75,8 @@ class Registry:
 
                 In case of duplicates, the last entry wins.
 
-                For DescFile, the types and descriptors from the defined files are all
-                collected into this registry.
+                For DescFile, the types and descriptors from the defined file and its
+                dependencies are all collected into this registry.
 
                 For DescMessage, the message itself and all nested types are collected
                 into this registry.
@@ -106,6 +106,8 @@ class Registry:
                         desc_or_reg.number
                     ] = desc_or_reg
                 case DescFile():
+                    for f in desc_or_reg.dependencies:
+                        self.add(f)
                     self._files[desc_or_reg.name] = desc_or_reg
                     for desc in (
                         *desc_or_reg.enums,
