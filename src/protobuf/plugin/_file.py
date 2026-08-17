@@ -21,9 +21,12 @@ from typing import TYPE_CHECKING, Any, Final, Protocol
 from protobuf import DescEnum, DescExtension, DescFile, DescMessage, ScalarType
 from protobuf._typing import assert_never
 from protobuf.plugin._ident import Ident, Module
+from protobuf.plugin._rewrite_imports import rewrite_module_path
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Iterator
+
+    from protobuf.plugin._rewrite_imports import RewriteImports
 
 _INDENT = " " * 4
 
@@ -217,6 +220,7 @@ class _File:
         parameter: str,
         *,
         escape_module_with_hash: bool = False,
+        rewrite_imports: RewriteImports = (),
     ) -> None:
         self.path = path
         self.module = module
@@ -225,6 +229,7 @@ class _File:
         self._plugin_version = plugin_version
         self._parameter = parameter
         self._escape_module_with_hash = escape_module_with_hash
+        self._rewrite_imports = rewrite_imports
         self._indent = 0
         self._type_checking = False
         self._in_doc = False
@@ -326,12 +331,40 @@ class _File:
                 )
             case _:
                 return repr(v)
-        ident = self._relativize(ident)
+        ident = self._relativize(self._rewrite_import(ident))
         if ident.type_only:
             self._type_imports[ident.module].add(ident)
         else:
             self._runtime_imports[ident.module].add(ident)
         return ident
+
+    def _rewrite_import(self, ident: Ident) -> Ident:
+        if not self._rewrite_imports:
+            return ident
+        # A DescFile ident imports the module itself, so its import
+        # path includes the ident name.
+        is_module_import = isinstance(ident._desc, DescFile)
+        module_path = ident.module.path
+        if is_module_import:
+            sep = "" if module_path.endswith(".") else "."
+            module_path = f"{module_path}{sep}{ident.name}"
+        elif _is_relative(ident.module) and _module_segments(
+            ident.module
+        ) == _module_segments(self.module):
+            # References to symbols in this file are not imports.
+            return ident
+        rewritten = rewrite_module_path(module_path, self._rewrite_imports)
+        if rewritten is None:
+            return ident
+        if is_module_import:
+            parent, _, name = rewritten.rpartition(".")
+            # A module import that lands at the top level is written as
+            # a plain `import X` statement, keyed by the module itself.
+            module = Module(parent) if parent else Module(name)
+            return Ident(name, module, type_only=ident.type_only, _desc=ident._desc)
+        return Ident(
+            ident.name, Module(rewritten), type_only=ident.type_only, _desc=ident._desc
+        )
 
     def _relativize(self, ident: Ident) -> Ident:
         if not _is_relative(ident.module):
@@ -339,6 +372,7 @@ class _File:
                 ident.name,
                 ident.module,
                 type_only=ident.type_only or self._type_checking,
+                _desc=ident._desc,
             )
 
         self_segments = _module_segments(self.module)
@@ -483,8 +517,24 @@ def _write_imports(
     # Ruff splits the imports into groups of std, global, and relative. We also do the same:
     for group in _group_and_sort_imports(imports):
         for module, idents in group.items():
-            deduped = sorted({aliases.resolve_import(ident) for ident in idents})
-            lines.append(f"{indent}from {module.path} import {', '.join(deduped)}")
+            module_imports = [
+                ident for ident in idents if _is_module_import(module, ident)
+            ]
+            lines.extend(
+                f"{indent}import {import_}"
+                for import_ in sorted(
+                    {aliases.resolve_import(ident) for ident in module_imports}
+                )
+            )
+
+            from_imports = [
+                ident for ident in idents if not _is_module_import(module, ident)
+            ]
+            if from_imports:
+                deduped = sorted(
+                    {aliases.resolve_import(ident) for ident in from_imports}
+                )
+                lines.append(f"{indent}from {module.path} import {', '.join(deduped)}")
 
         lines.append("")
 
@@ -595,6 +645,11 @@ def _flatten(args: Iterable[object]) -> Iterator[object]:
 def _is_relative(module: Module) -> bool:
     """Return True if the module path is a relative import."""
     return module.path.startswith(".")
+
+
+def _is_module_import(module: Module, ident: Ident) -> bool:
+    """Return True if the identifier imports a top-level module itself."""
+    return isinstance(ident._desc, DescFile) and module.path == ident.name
 
 
 def _module_segments(module: Module) -> list[str]:

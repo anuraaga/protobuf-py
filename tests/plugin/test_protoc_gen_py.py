@@ -128,3 +128,40 @@ class TestOptions:
             '''
             ).lstrip()
         )
+
+    def test_external_dependency(self, protoc: Protoc) -> None:
+        """Imports of a dependency served by a separate package.
+
+        The dependency is not generated with the importing file, so a
+        relative import would point at a location that does not exist in
+        the output package. rewrite_imports with an empty target maps it
+        to the canonical import path the external package provides.
+        """
+        resp = protoc.run_plugin(
+            Plugin(_generate, options=_Options),
+            {
+                "app/main.proto": """
+                syntax = "proto3";
+                package app;
+                import "buf/validate/validate.proto";
+                message Main {
+                    buf.validate.Rule rule = 1;
+                }
+                """,
+                "buf/validate/validate.proto": """
+                syntax = "proto3";
+                package buf.validate;
+                message Rule {}
+                """,
+            },
+            files_to_generate=["app/main.proto"],
+            parameter="rewrite_imports=./buf/validate/**/*_pb.py:",
+        )
+
+        assert resp.error == ""
+        files = {f.name: f.content for f in resp.file}
+        assert set(files) == {"__init__.py", "app/__init__.py", "app/main_pb.py"}
+        main = files["app/main_pb.py"]
+        assert "from buf.validate import validate_pb" in main
+        assert "from buf.validate.validate_pb import Rule" in main
+        assert "from ..buf.validate" not in main
