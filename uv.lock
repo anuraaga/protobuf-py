@@ -298,6 +298,17 @@ wheels = [
 ]
 
 [[package]]
+name = "googleapis-googleapis-bufbuild-py"
+version = "0.3.0.2.20260414192239+c17df5b2beca"
+source = { registry = "https://buf.build/gen/python" }
+dependencies = [
+    { name = "protobuf-py" },
+]
+wheels = [
+    { url = "https://buf.build/gen/python/googleapis-googleapis-bufbuild-py/googleapis_googleapis_bufbuild_py-0.3.0.2.20260414192239+c17df5b2beca-py3-none-any.whl", upload-time = "2026-08-10T18:49:41Z" },
+]
+
+[[package]]
 name = "griffelib"
 version = "2.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -736,6 +747,7 @@ dev = [
     { name = "example" },
     { name = "example-plugin" },
     { name = "fix-protobuf-imports" },
+    { name = "googleapis-googleapis-bufbuild-py" },
     { name = "hypothesis" },
     { name = "license-header" },
     { name = "maturin" },
@@ -763,6 +775,7 @@ dev-required = [
     { name = "buf-bin" },
     { name = "example" },
     { name = "example-plugin" },
+    { name = "googleapis-googleapis-bufbuild-py" },
     { name = "hypothesis" },
     { name = "license-header" },
     { name = "poethepoet" },
@@ -798,6 +811,7 @@ dev = [
     { name = "example", editable = "examples/protobuf" },
     { name = "example-plugin", editable = "examples/plugin" },
     { name = "fix-protobuf-imports", specifier = "==0.1.7" },
+    { name = "googleapis-googleapis-bufbuild-py", specifier = "==0.3.0.2.20260414192239+c17df5b2beca", index = "https://buf.build/gen/python" },
     { name = "hypothesis", specifier = "==6.165.10" },
     { name = "license-header", specifier = "==0.0.1" },
     { name = "maturin", specifier = "==1.14.1" },
@@ -823,6 +837,7 @@ dev-required = [
     { name = "buf-bin", specifier = "==1.72.0" },
     { name = "example", editable = "examples/protobuf" },
     { name = "example-plugin", editable = "examples/plugin" },
+    { name = "googleapis-googleapis-bufbuild-py", specifier = "==0.3.0.2.20260414192239+c17df5b2beca", index = "https://buf.build/gen/python" },
     { name = "hypothesis", specifier = "==6.165.10" },
     { name = "license-header", specifier = "==0.0.1" },
     { name = "poethepoet", specifier = "==0.48.0" },

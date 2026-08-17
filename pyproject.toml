@@ -48,6 +48,7 @@ dev-required = [
   "upstream-protobuf",
 
   "buf-bin==1.72.0",
+  "googleapis-googleapis-bufbuild-py==0.3.0.2.20260414192239+c17df5b2beca",
   "hypothesis==6.165.10",
   "license-header==0.0.1",
   "poethepoet==0.48.0",
@@ -473,6 +474,11 @@ exclude = [
 reinstall-package = ["protobuf-py-ext"]
 no-build-isolation-package = ["protobuf-py-ext"]
 
+[[tool.uv.index]]
+name = "buf"
+url = "https://buf.build/gen/python"
+explicit = true
+
 [tool.uv.build-backend]
 module-name = ["protobuf"]
 
@@ -484,6 +490,8 @@ example = { workspace = true }
 example-plugin = { workspace = true }
 protobuf-py-ext = { workspace = true }
 protobuf-py-bench = { workspace = true }
+
+googleapis-googleapis-bufbuild-py = { index = "buf" }
 
 [tool.uv.workspace]
 members = [

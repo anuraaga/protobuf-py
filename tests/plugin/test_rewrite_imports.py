@@ -187,13 +187,6 @@ class TestFileRewrites:
         )
 
     def test_canonical_external_dependency(self, protoc: Protoc) -> None:
-        """An import of a dependency provided by a separate package.
-
-        Ported from https://github.com/bufbuild/protobuf-py/pull/15: the
-        dependency is not generated alongside the importing file, so its
-        relative import would be broken. rewrite_imports with an empty
-        target produces the canonical import instead.
-        """
         files = protoc.compile(
             {
                 "app/main.proto": """

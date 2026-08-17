@@ -130,13 +130,6 @@ class TestOptions:
         )
 
     def test_external_dependency(self, protoc: Protoc) -> None:
-        """Imports of a dependency served by a separate package.
-
-        The dependency is not generated with the importing file, so a
-        relative import would point at a location that does not exist in
-        the output package. rewrite_imports with an empty target maps it
-        to the canonical import path the external package provides.
-        """
         resp = protoc.run_plugin(
             Plugin(_generate, options=_Options),
             {
