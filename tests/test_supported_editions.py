@@ -23,7 +23,7 @@ def test_minimum_supported_edition() -> None:
 
 
 def test_maximum_supported_edition() -> None:
-    assert protobuf.maximum_supported_edition == Edition.EDITION_2024
+    assert protobuf.maximum_supported_edition == Edition.EDITION_2026
 
 
 def test_min_max_match_feature_defaults() -> None:

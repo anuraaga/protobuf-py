@@ -388,6 +388,8 @@ def _read_enum(
     if isinstance(json, str):
         if value := desc._values_by_name.get(json):
             return desc.type(value.number)
+        if value := desc._values_by_json_name.get(json):
+            return desc.type(value.number)
         if ignore_unknown_fields:
             return None
 

@@ -51,7 +51,7 @@ _IDEMPOTENCY_UNKNOWN: Final[int] = 0
 
 # Minimum and maximum supported editions
 _MINIMUM_EDITION: Final[int] = 998  # Edition.PROTO2
-_MAXIMUM_EDITION: Final[int] = 1001  # Edition.EDITION_2024
+_MAXIMUM_EDITION: Final[int] = 1002  # Edition.EDITION_2026
 
 _FeatureKey = Literal[
     "field_presence",
@@ -62,6 +62,7 @@ _FeatureKey = Literal[
     "json_format",
     "enforce_naming_style",
     "default_symbol_visibility",
+    "enforce_proto_limits",
 ]
 
 # Sourced from descriptor.proto via protoc --edition_defaults_out.
@@ -76,6 +77,7 @@ _feature_defaults: Final[Mapping[int, Mapping[_FeatureKey, int]]] = {
         "json_format": 2,  # LEGACY_BEST_EFFORT
         "enforce_naming_style": 2,  # STYLE_LEGACY
         "default_symbol_visibility": 1,  # EXPORT_ALL
+        "enforce_proto_limits": 1,  # LEGACY_NO_EXPLICIT_LIMITS
     },
     # PROTO3
     999: {
@@ -87,6 +89,7 @@ _feature_defaults: Final[Mapping[int, Mapping[_FeatureKey, int]]] = {
         "json_format": 1,  # ALLOW
         "enforce_naming_style": 2,  # STYLE_LEGACY
         "default_symbol_visibility": 1,  # EXPORT_ALL
+        "enforce_proto_limits": 1,  # LEGACY_NO_EXPLICIT_LIMITS
     },
     # EDITION_2023
     1000: {
@@ -98,6 +101,7 @@ _feature_defaults: Final[Mapping[int, Mapping[_FeatureKey, int]]] = {
         "json_format": 1,  # ALLOW
         "enforce_naming_style": 2,  # STYLE_LEGACY
         "default_symbol_visibility": 1,  # EXPORT_ALL
+        "enforce_proto_limits": 1,  # LEGACY_NO_EXPLICIT_LIMITS
     },
     # EDITION_2024
     1001: {
@@ -109,5 +113,18 @@ _feature_defaults: Final[Mapping[int, Mapping[_FeatureKey, int]]] = {
         "json_format": 1,  # ALLOW
         "enforce_naming_style": 1,  # STYLE2024
         "default_symbol_visibility": 2,  # EXPORT_TOP_LEVEL
+        "enforce_proto_limits": 1,  # LEGACY_NO_EXPLICIT_LIMITS
+    },
+    # EDITION_2026
+    1002: {
+        "field_presence": 1,  # EXPLICIT
+        "enum_type": 1,  # OPEN
+        "repeated_field_encoding": 1,  # PACKED
+        "utf8_validation": 2,  # VERIFY
+        "message_encoding": 1,  # LENGTH_PREFIXED
+        "json_format": 1,  # ALLOW
+        "enforce_naming_style": 3,  # STYLE2026
+        "default_symbol_visibility": 4,  # STRICT
+        "enforce_proto_limits": 2,  # PROTO_LIMITS2026
     },
 }

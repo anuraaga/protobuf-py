@@ -74,6 +74,7 @@ if TYPE_CHECKING:
     from .wkt._gen.descriptor_pb import (
         DescriptorProto,
         EnumDescriptorProto,
+        EnumValueDescriptorProto,
         FieldDescriptorProto,
         FileDescriptorProto,
         MethodDescriptorProto,
@@ -197,6 +198,7 @@ def _add_enum(
     values: list[DescEnumValue] = []
     values_by_number: dict[int, DescEnumValue] = {}
     values_by_name: dict[str, DescEnumValue] = {}
+    values_by_json_name: dict[str, DescEnumValue] = {}
 
     stub = cast("type[Enum]", _find_stub(type_name, file, stubs))
     local_name = escape_class_name(proto.name)
@@ -212,6 +214,7 @@ def _add_enum(
         values=values,
         _values_by_number=values_by_number,
         _values_by_name=values_by_name,
+        _values_by_json_name=values_by_json_name,
         deprecated=proto.options.deprecated if proto.options else False,
         proto=proto,
         _type=stub,
@@ -240,14 +243,28 @@ def _add_enum(
             local_name=escape_enum_attr(local_name),
             parent=desc_enum,
             number=value_proto.number,
+            json_name=_enum_value_json_name(value_proto),
             deprecated=value_proto.options.deprecated if value_proto.options else False,
             proto=value_proto,
         )
         values.append(desc_value)
         values_by_number[value_proto.number] = desc_value
         values_by_name[value_proto.name] = desc_value
+        if desc_value.json_name is not None:
+            values_by_json_name[desc_value.json_name] = desc_value
     reg.add(desc_enum)
     return desc_enum
+
+
+def _enum_value_json_name(value_proto: EnumValueDescriptorProto) -> str | None:
+    options = value_proto.options
+    if not options:
+        return None
+    from .wkt._gen.json_enumvalue_options_pb import ext_json  # noqa: PLC0415
+
+    if ext_json not in options:
+        return None
+    return options[ext_json].string
 
 
 def _add_message(

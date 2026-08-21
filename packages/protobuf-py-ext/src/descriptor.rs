@@ -242,9 +242,9 @@ pub(crate) struct DescEnumInner {
     pub(crate) type_name: Py<PyString>,
 
     // Used for JSON.
-    /// Numeric value -> proto value name.
+    /// Numeric value -> JSON name (custom JSON name if set, else proto value name).
     pub(crate) names_by_number: HashMap<i32, Py<PyString>>,
-    /// Proto value name -> numeric value.
+    /// Proto value name or custom JSON name -> numeric value.
     pub(crate) numbers_by_name: HashMap<String, i32>,
     /// Whether this enum is `google.protobuf.NullValue`.
     pub(crate) is_null_value: bool,
@@ -290,6 +290,7 @@ impl DescEnum {
         let mut values = HashMap::new();
         let mut names_by_number = HashMap::new();
         let mut numbers_by_name = HashMap::new();
+        let mut custom_json_names = Vec::new();
         let mut first_value = None;
         for enum_value in python_values.iter() {
             let number = enum_value.getattr(&constants.number)?.extract::<i32>()?;
@@ -305,7 +306,18 @@ impl DescEnum {
                 .getattr(&constants.name)?
                 .cast_into::<PyString>()?;
             numbers_by_name.insert(name.to_str()?.to_owned(), number);
-            names_by_number.insert(number, name.unbind());
+            let json_name = enum_value.getattr(&constants.json_name)?;
+            if json_name.is_none() {
+                names_by_number.insert(number, name.unbind());
+            } else {
+                let json_name = json_name.cast_into::<PyString>()?;
+                custom_json_names.push((json_name.to_str()?.to_owned(), number));
+                names_by_number.insert(number, json_name.unbind());
+            }
+        }
+        // A custom JSON name never shadows a declared value name.
+        for (json_name, number) in custom_json_names {
+            numbers_by_name.entry(json_name).or_insert(number);
         }
         let zero_value = first_value.unwrap();
 
