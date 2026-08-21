@@ -44,6 +44,7 @@ _WKT_PROTO_PATHS: frozenset[str] = frozenset(
         "google/protobuf/go_features.proto",
         "google/protobuf/java_features.proto",
         "google/protobuf/json_enumvalue_options.proto",
+        "google/protobuf/json_options.proto",
         "google/protobuf/source_context.proto",
         "google/protobuf/struct.proto",
         "google/protobuf/timestamp.proto",
