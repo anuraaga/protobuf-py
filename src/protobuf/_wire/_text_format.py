@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import re
 
+from typing_extensions import assert_never
+
 from protobuf._descriptors import DescEnum, ScalarType
-from protobuf._typing import assert_never
 
 
 def parse_text_format_enum_value(desc: DescEnum, value: str) -> int:
@@ -28,7 +29,7 @@ def parse_text_format_enum_value(desc: DescEnum, value: str) -> int:
     return value_desc.number
 
 
-def parse_text_format_scalar_value(  # noqa: RET503
+def parse_text_format_scalar_value(
     scalar: ScalarType, value: str
 ) -> int | float | bytes | str | bool:
     """Parse a scalar value from the Protobuf text format."""

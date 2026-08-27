@@ -16,6 +16,8 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescField,
@@ -30,7 +32,6 @@ from ._descriptors import (
     SupportedFieldPresence,
 )
 from ._oneof import Oneof
-from ._typing import assert_never
 
 if TYPE_CHECKING:
     from ._message import Message

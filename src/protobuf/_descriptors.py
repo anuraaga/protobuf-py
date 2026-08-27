@@ -17,7 +17,8 @@ from dataclasses import dataclass, field as dataclassfield
 from enum import IntEnum
 from typing import TYPE_CHECKING, Literal, TypeAlias, cast, final
 
-from ._typing import assert_never
+from typing_extensions import assert_never
+
 from ._wire import WireType
 
 try:
@@ -513,7 +514,7 @@ class DescFieldValueList:
     """The wire type for the unpacked encoding, used to validate when parsing an unpacked repeated field."""
 
 
-def element_wire_type(  # noqa: RET503
+def element_wire_type(
     element_type: DescMessage | DescEnum | ScalarType, *, delimited_encoding: bool
 ) -> WireType:
     match element_type:

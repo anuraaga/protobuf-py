@@ -21,6 +21,8 @@ from dataclasses import dataclass
 from itertools import chain
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from protobuf import (
     DescEnum,
     DescEnumValue,
@@ -42,7 +44,6 @@ from protobuf import (
 from protobuf._descriptors import SupportedFieldPresence
 from protobuf._names import proto_camel_case
 from protobuf._sanitization import escape_extension_name
-from protobuf._typing import assert_never
 from protobuf.plugin import File, Ident, Module, Schema, get_comments, run
 
 if TYPE_CHECKING:
@@ -484,7 +485,7 @@ def _generate_docstring(
     f.print("```")
 
 
-def _provenance_text(  # noqa: RET503
+def _provenance_text(
     desc: DescMessage
     | DescField
     | DescEnum

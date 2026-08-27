@@ -18,8 +18,9 @@ from collections import defaultdict
 from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Any, Final, Protocol
 
+from typing_extensions import assert_never
+
 from protobuf import DescEnum, DescExtension, DescFile, DescMessage, ScalarType
-from protobuf._typing import assert_never
 from protobuf.plugin._ident import Ident, Module
 
 if TYPE_CHECKING:
@@ -555,7 +556,7 @@ class _AliasResolver:
         return self._resolve(Ident(candidate, ident.module)) or candidate
 
 
-def _scalar_type(scalar: ScalarType) -> str:  # noqa: RET503
+def _scalar_type(scalar: ScalarType) -> str:
     """Map a protobuf scalar type to its Python type name."""
     match scalar:
         case ScalarType.DOUBLE | ScalarType.FLOAT:

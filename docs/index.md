@@ -3,8 +3,8 @@
 The only modern, complete Python protobuf library.
 
 100% Protobuf conformance with full support for `proto2`, `proto3`, and editions.
-Generated code is readable, typed, and works out of the box with no dependencies or extra tooling required.
-Native Rust module for high-performance encoding/decoding.
+Generated code is readable, typed, and works out of the box with no third-party dependencies
+or extra tooling required. Native Rust module for high-performance encoding/decoding.
 
 The Pythonic API results in code that you are happy to read.
 

@@ -19,6 +19,8 @@ from base64 import b64decode
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescExtension,
@@ -32,7 +34,6 @@ from ._descriptors import (
     ScalarType,
 )
 from ._oneof import Oneof
-from ._typing import JsonValue, assert_never
 from ._validate import (
     FLOAT32_MAX,
     FLOAT32_MIN,
@@ -56,6 +57,7 @@ if TYPE_CHECKING:
     from ._enum import Enum
     from ._message import Message
     from ._registry import Registry
+    from ._typing import JsonValue
     from .wkt import ListValue, NullValue, Struct, Value
 
     T = TypeVar("T", bound=Message)
