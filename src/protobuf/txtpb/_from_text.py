@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from enum import Enum as _StdEnum
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from protobuf._descriptors import (
     DescEnum,
     DescExtension,
@@ -33,7 +35,6 @@ from protobuf._descriptors import (
 )
 from protobuf._field_values import scalar_zero_value
 from protobuf._from_json import _read_int
-from protobuf._typing import assert_never
 from protobuf._wire._binary_reader import DEPTH_LIMIT
 
 from ._to_text import fround, group_like_message

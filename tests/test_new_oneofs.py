@@ -15,8 +15,9 @@ from __future__ import annotations
 
 from typing import Literal, TypeAlias
 
+from typing_extensions import assert_never
+
 from protobuf import Oneof
-from protobuf._typing import assert_never
 from tests.gen.messages_pb import MixedFields
 
 # Type alias for pattern matching test
@@ -44,7 +45,7 @@ def test_oneof_creation() -> None:
 def test_oneof_pattern_matching() -> None:
     """Test pattern matching with Oneof for type narrowing."""
 
-    def process_value(val: StringOrInt) -> str:  # noqa: RET503
+    def process_value(val: StringOrInt) -> str:
         match val:
             case Oneof(field="text", value=v):
                 # v should be narrowed to str

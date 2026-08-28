@@ -17,6 +17,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescFieldValueEnum,
@@ -29,7 +31,6 @@ from ._descriptors import (
 )
 from ._enum import Enum
 from ._field_values import scalar_zero_value
-from ._typing import assert_never
 from ._wire._binary_reader import DEPTH_LIMIT, BinaryReader
 from ._wire._binary_writer import BinaryWriter
 from ._wire._wire_type import WireType

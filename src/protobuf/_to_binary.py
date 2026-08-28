@@ -16,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescFieldValueEnum,
@@ -26,7 +28,6 @@ from ._descriptors import (
     DescMessage,
     ScalarType,
 )
-from ._typing import assert_never
 from ._wire._binary_writer import BinaryWriter
 from ._wire._wire_type import WireType
 

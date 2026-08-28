@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescFieldValue,
@@ -41,7 +43,6 @@ from ._to_binary import (
     write_message_field,
     write_scalar_field,
 )
-from ._typing import assert_never
 from ._wire import BinaryReader, BinaryWriter
 
 if TYPE_CHECKING:
@@ -66,7 +67,7 @@ def has_unknown_field(
     return number in uf
 
 
-def get_unknown_field(  # noqa: RET503
+def get_unknown_field(
     message: Message, number: int, field_value: DescFieldValue
 ) -> Any:
     if not (uf := message._unknown_fields) or not (binary_fields := uf.get(number)):

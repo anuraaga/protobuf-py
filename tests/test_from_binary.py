@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from typing_extensions import assert_never
 
 from protobuf import (
     DescEnum,
@@ -26,7 +27,6 @@ from protobuf import (
     Message,
     ScalarType,
 )
-from protobuf._typing import assert_never
 from protobuf._wire import BinaryWriter, WireType
 
 from .gen.delimited_encoding_pb import DelimitedEncoding

@@ -16,10 +16,11 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING, TypeVar, final
 
+from typing_extensions import assert_never
+
 from ._descriptors import DescEnum, DescExtension, DescFile, DescMessage, DescService
 from ._extension import Extension
 from ._message import Message
-from ._typing import assert_never
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -119,7 +120,7 @@ class Registry:
                 case Registry():
                     self._extend(desc_or_reg)
                 case _:
-                    assert_never(desc_or_reg)  # ty: ignore[invalid-argument-type] # https://github.com/astral-sh/ty/issues/4370
+                    assert_never(desc_or_reg)  # ty: ignore[type-assertion-failure] # https://github.com/astral-sh/ty/issues/4370
 
     def file(self, path: str) -> DescFile | None:
         """Look up a file descriptor by its path.

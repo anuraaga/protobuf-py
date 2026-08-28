@@ -16,6 +16,8 @@ from __future__ import annotations
 from math import copysign
 from typing import Any
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescField,
     DescFieldValue,
@@ -29,10 +31,9 @@ from ._descriptors import (
     ScalarType,
     SupportedFieldPresence,
 )
-from ._typing import assert_never
 
 
-def scalar_zero_value(scalar_type: ScalarType) -> Any:  # noqa: RET503
+def scalar_zero_value(scalar_type: ScalarType) -> Any:
     """Return the zero value for a scalar type."""
     match scalar_type:
         case ScalarType.BOOL:
@@ -77,7 +78,7 @@ def requires_presence(member: DescField) -> bool:
     return False
 
 
-def default_value(member: DescFieldValue | DescOneof) -> Any:  # noqa: RET503
+def default_value(member: DescFieldValue | DescOneof) -> Any:
     """Return the default value for the given field or oneof."""
     match member:
         case DescOneof() | DescFieldValueMessage():

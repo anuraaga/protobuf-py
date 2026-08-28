@@ -14,7 +14,9 @@
 from __future__ import annotations
 
 from copy import copy, deepcopy
-from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
+from typing import TYPE_CHECKING, Any, ClassVar, Generic, overload
+
+from typing_extensions import TypeVar
 
 from . import _native_message
 from ._descriptors import (
@@ -50,7 +52,7 @@ if TYPE_CHECKING:
 Self = TypeVar("Self", bound="Message")
 
 # TypeVar for making Message generic over its field names
-FieldNamesT = TypeVar("FieldNamesT", bound=str)
+FieldNamesT = TypeVar("FieldNamesT", bound=str, default=Any)
 
 M = TypeVar("M", bound="Message")
 E = TypeVar("E")
