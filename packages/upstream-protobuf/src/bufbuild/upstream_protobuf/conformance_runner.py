@@ -20,7 +20,7 @@ import subprocess
 import sys
 from typing import TYPE_CHECKING
 
-from protoc import get_conformance_test_runner_path
+from protoc import get_conformance_test_runner_path, get_protoc_path
 
 from protobuf import maximum_supported_edition
 
@@ -28,12 +28,18 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
+def _runner_path() -> Path:
+    if sys.platform == "win32":
+        return get_protoc_path().parent / "conformance_test_runner.exe"
+    return get_conformance_test_runner_path()
+
+
 def run(output_dir: Path, command: list[str], test: str = "") -> None:
     """Run the conformance test runner."""
     env = os.environ.copy()
     env["PYTHONPATH"] = os.pathsep.join(sys.path)
     args = [
-        get_conformance_test_runner_path(),
+        _runner_path(),
         "--output_dir",
         str(output_dir),
         "--enforce_recommended",

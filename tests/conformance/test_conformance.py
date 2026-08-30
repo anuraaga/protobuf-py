@@ -17,8 +17,6 @@ import sys
 from pathlib import Path
 from textwrap import dedent
 
-import pytest
-
 from bufbuild.upstream_protobuf import conformance_runner
 
 
@@ -36,10 +34,6 @@ def maybe_patch_args_with_debug(args: list[str]) -> list[str]:
         return args
 
 
-@pytest.mark.skipif(
-    sys.platform not in ("linux", "darwin"),
-    reason="conformance test runner binaries not available for Windows",
-)
 def test_conformance() -> None:
     current_dir = Path(__file__).parent
 

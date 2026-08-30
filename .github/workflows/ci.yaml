@@ -50,6 +50,19 @@ jobs:
         if: matrix.native-ext
         run: rustup update
       - run: uv sync --locked
+
+      - name: Build conformance test runner (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          USE_BAZEL_VERSION: "8.6.0"
+        run: |
+          git clone --depth 1 --branch windows-conformance https://github.com/anuraaga/protobuf.git "$env:RUNNER_TEMP/protobuf"
+          cd "$env:RUNNER_TEMP/protobuf"
+          bazel build //conformance:conformance_test_runner
+          Copy-Item bazel-bin/conformance/conformance_test_runner.exe "$env:GITHUB_WORKSPACE/.venv/Lib/site-packages/protoc/_bin/"
+          bazel shutdown
+
       - name: lint protobuf-py-ext
         if: matrix.native-ext
         run: uv run poe ext-lint
@@ -59,12 +72,6 @@ jobs:
       - run: uv run poe test
         env:
           ASSERT_MARSHALER_IMPLEMENTATION: ${{ matrix.native-ext && 'native' || 'python' }}
-
-      # Ensure tests pass without optional dependencies. Issues would come from eager imports, so we go ahead
-      # and run the single conformance test only to keep this step lightweight and give high coverage.
-      - run: |
-          uv sync --no-dev
-          uv run --no-dev --group dev-required pytest -k test_conformance
 
   test-pypy:
     name: ${{ matrix.os }} / ${{ matrix.python-version }}
