@@ -26,6 +26,7 @@ from protobuf import (
     DescMessage,
     Message,
     ScalarType,
+    merge_from_binary,
 )
 from protobuf._wire import BinaryWriter, WireType
 
@@ -38,6 +39,25 @@ from .gen.scalars_pb import Scalars
 
 if TYPE_CHECKING:
     from .conftest import Protoc
+
+
+MSG_BYTES = Scalars(int32_field=1).to_binary()
+
+
+@pytest.mark.parametrize(
+    "obj",
+    [
+        pytest.param(MSG_BYTES, id="bytes"),
+        pytest.param(bytearray(MSG_BYTES), id="bytearray"),
+        pytest.param(memoryview(MSG_BYTES), id="memoryview"),
+    ],
+)
+def test_from_binary_buffer(obj: bytes | bytearray | memoryview) -> None:
+    msg = Scalars.from_binary(obj)
+    assert msg.int32_field == 1
+    msg = Scalars()
+    merge_from_binary(msg, obj)
+    assert msg.int32_field == 1
 
 
 def encode_map_entry(desc_field: DescField, *, key: Any, value: Any) -> bytes:

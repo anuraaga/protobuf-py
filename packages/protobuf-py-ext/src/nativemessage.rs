@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use pyo3::{
     Bound, IntoPyObject as _, IntoPyObjectExt as _, Py, PyAny, PyResult, Python,
     exceptions::PyTypeError,
@@ -14,6 +13,7 @@ use pyo3::{
 use crate::{
     attribute_access::generic_setattr,
     bitset::BitSet,
+    buffer::Buffer,
     constants::Constants,
     json_parse::{FromJsonOpts, merge_from_json, read_message_from_tree},
     json_serialize::JsonOpts,
@@ -104,9 +104,10 @@ impl NativeMessage {
     fn from_binary<'py>(
         cls: &Bound<'py, PyType>,
         py: Python<'py>,
-        data: Bytes,
+        data: Buffer,
         ignore_unknown_fields: bool,
     ) -> PyResult<Bound<'py, NativeMessage>> {
+        let data = data.into_inner();
         let constants = Constants::get(py)?;
         let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
         let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get();
@@ -266,9 +267,10 @@ impl NativeMessage {
     fn _merge_from_binary(
         slf: &Bound<'_, Self>,
         py: Python<'_>,
-        data: Bytes,
+        data: Buffer,
         ignore_unknown_fields: bool,
     ) -> PyResult<()> {
+        let data = data.into_inner();
         NativeMessage::get_marshaler(slf)?.merge_from_binary(py, slf, data, ignore_unknown_fields)
     }
 
