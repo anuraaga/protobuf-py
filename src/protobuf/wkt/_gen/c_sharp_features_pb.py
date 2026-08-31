@@ -19,7 +19,7 @@
 
 from __future__ import annotations
 
-from typing import Final, NoReturn, TYPE_CHECKING, TypeAlias
+from typing import Final, Literal, TYPE_CHECKING, TypeAlias
 
 from protobuf import Extension, Message
 from protobuf._codegen import file_desc
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from protobuf import DescFile
 
 
-_CSharpFeaturesFields: TypeAlias = NoReturn
+_CSharpFeaturesFields: TypeAlias = Literal["nullable_reference_types"]
 
 
 class CSharpFeatures(Message[_CSharpFeaturesFields]):
@@ -39,14 +39,26 @@ class CSharpFeatures(Message[_CSharpFeaturesFields]):
     ```proto
     message pb.CSharpFeatures
     ```
+
+    Attributes:
+        nullable_reference_types:
+            Whether the generated files should have nullable reference type annotations.
+            When enabled, the generated C# code includes `#nullable enable annotations`
+            and annotates message-typed properties and certain parameters with `?`.
+
+            ```proto
+            optional bool nullable_reference_types = 1;
+            ```
     """
 
-    __slots__ = ()
+    __slots__ = ("nullable_reference_types",)
 
     if TYPE_CHECKING:
 
-        def __init__(self) -> None:
+        def __init__(self, *, nullable_reference_types: bool | None = None) -> None:
             pass
+
+        nullable_reference_types: bool
 
 
 ext_csharp: Final[Extension[FeatureSet, CSharpFeatures]] = Extension()
@@ -58,7 +70,7 @@ extend google.protobuf.FeatureSet { optional pb.CSharpFeatures csharp = 1004 [js
 
 
 _DESC = file_desc(
-    b'\n&google/protobuf/c_sharp_features.proto\x12\x02pb\x1a google/protobuf/descriptor.proto"\x10\n\x0eCSharpFeatures:H\n\x06csharp\x18\xec\x07 \x01(\x0b2\x12.pb.CSharpFeatures\x12\x1b.google.protobuf.FeatureSetR\x06csharpB9B\x18CSharpFeaturesOuterClassP\x01\xaa\x02\x1aGoogle.Protobuf.Reflection',
+    b'\n&google/protobuf/c_sharp_features.proto\x12\x02pb\x1a google/protobuf/descriptor.proto"k\n\x0eCSharpFeatures\x12Y\n\x18nullable_reference_types\x18\x01 \x01(\x08R\x16nullableReferenceTypesB\x1f\x88\x01\x01\x98\x01\x04\x98\x01\x03\x98\x01\x01\xa2\x01\n\x18\x84\x07\x12\x05false\xb2\x01\x03\x08\xea\x07:H\n\x06csharp\x18\xec\x07 \x01(\x0b2\x12.pb.CSharpFeatures\x12\x1b.google.protobuf.FeatureSetR\x06csharpB9B\x18CSharpFeaturesOuterClassP\x01\xaa\x02\x1aGoogle.Protobuf.Reflection',
     [descriptor_pb.desc()],
     {"CSharpFeatures": CSharpFeatures, "csharp": ext_csharp},
 )

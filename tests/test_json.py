@@ -27,6 +27,7 @@ from protobuf import (
 )
 
 from .gen.enums_pb import ClosedColor, Color, EnumMessage
+from .gen.json_enum_names_pb import JsonEnumNames, Season
 from .gen.json_names_pb import JsonNames
 from .gen.lists_pb import Lists
 from .gen.maps_pb import Maps
@@ -329,6 +330,19 @@ from .gen.scalars_pb import Scalars
             },
             id="JsonNames",
         ),
+        pytest.param(
+            JsonEnumNames(
+                season_field=Season.SPRING,
+                repeated_field=[Season.SUMMER, Season.FALL],
+                map_field={"a": Season.SPRING, "b": Season.UNSPECIFIED},
+            ),
+            {
+                "seasonField": "primavera",
+                "repeatedField": ["estate", "SEASON_FALL"],
+                "mapField": {"a": "primavera", "b": "SEASON_UNSPECIFIED"},
+            },
+            id="JsonEnumNames",
+        ),
     ],
 )
 def test_json(message: Message, expected: Any) -> None:
@@ -383,6 +397,11 @@ def test_always_emit_implicit(message: Message, expected: Any) -> None:
         ),
         pytest.param(
             EnumMessage(color_field=Color(99)), {"colorField": 99}, id="unknown_value"
+        ),
+        pytest.param(
+            JsonEnumNames(season_field=Season.SPRING),
+            {"seasonField": 1},
+            id="custom_json_name",
         ),
     ],
 )
@@ -459,6 +478,25 @@ def test_from_json_ignore_unknown_fields() -> None:
         json.dumps({"notAKnownField": "abc"}), ignore_unknown_fields=True
     )
     assert msg == Scalars()
+
+
+def test_from_json_enum_declared_name_with_custom_json_name() -> None:
+    """A value with a custom JSON name must still parse from its declared name."""
+    json_obj: dict[str, Any] = {"seasonField": "SEASON_SPRING"}
+    msg = JsonEnumNames.from_json(json.dumps(json_obj))
+    assert msg.season_field == Season.SPRING
+    msg = message_from_json_value(JsonEnumNames, json_obj)
+    assert msg.season_field == Season.SPRING
+
+
+def test_from_json_enum_unknown_custom_json_name() -> None:
+    msg_type = JsonEnumNames
+    with pytest.raises(ValueError, match="cannot decode"):
+        msg_type.from_json(json.dumps({"seasonField": "inverno"}))
+    msg = msg_type.from_json(
+        json.dumps({"seasonField": "inverno"}), ignore_unknown_fields=True
+    )
+    assert msg == msg_type()
 
 
 # Range and overflow errors (e.g. int32 too large, float32 overflow) are

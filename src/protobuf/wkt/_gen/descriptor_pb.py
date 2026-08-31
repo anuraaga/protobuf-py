@@ -2688,6 +2688,7 @@ _FeatureSetFields: TypeAlias = Literal[
     "json_format",
     "enforce_naming_style",
     "default_symbol_visibility",
+    "enforce_proto_limits",
 ]
 
 
@@ -2737,6 +2738,10 @@ class FeatureSet(Message[_FeatureSetFields]):
             ```proto
             optional google.protobuf.FeatureSet.VisibilityFeature.DefaultSymbolVisibility default_symbol_visibility = 8;
             ```
+        enforce_proto_limits:
+            ```proto
+            optional google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits enforce_proto_limits = 9;
+            ```
     """
 
     __slots__ = (
@@ -2748,6 +2753,7 @@ class FeatureSet(Message[_FeatureSetFields]):
         "json_format",
         "enforce_naming_style",
         "default_symbol_visibility",
+        "enforce_proto_limits",
     )
 
     if TYPE_CHECKING:
@@ -2764,6 +2770,8 @@ class FeatureSet(Message[_FeatureSetFields]):
             enforce_naming_style: FeatureSet.EnforceNamingStyle | None = None,
             default_symbol_visibility: FeatureSet.VisibilityFeature.DefaultSymbolVisibility
             | None = None,
+            enforce_proto_limits: FeatureSet.ProtoLimitsFeature.EnforceProtoLimits
+            | None = None,
         ) -> None:
             pass
 
@@ -2775,6 +2783,7 @@ class FeatureSet(Message[_FeatureSetFields]):
         json_format: FeatureSet.JsonFormat
         enforce_naming_style: FeatureSet.EnforceNamingStyle
         default_symbol_visibility: FeatureSet.VisibilityFeature.DefaultSymbolVisibility
+        enforce_proto_limits: FeatureSet.ProtoLimitsFeature.EnforceProtoLimits
 
     _VisibilityFeatureFields: TypeAlias = NoReturn
 
@@ -2836,6 +2845,55 @@ class FeatureSet(Message[_FeatureSetFields]):
             EXPORT_TOP_LEVEL = 2
             LOCAL_ALL = 3
             STRICT = 4
+
+    _ProtoLimitsFeatureFields: TypeAlias = NoReturn
+
+    class ProtoLimitsFeature(Message[_ProtoLimitsFeatureFields]):
+        """
+        ```proto
+        message google.protobuf.FeatureSet.ProtoLimitsFeature
+        ```
+        """
+
+        __slots__ = ()
+
+        if TYPE_CHECKING:
+
+            def __init__(self) -> None:
+                pass
+
+        class EnforceProtoLimits(Enum):
+            """
+            ```proto
+            enum google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits
+            ```
+
+            Attributes:
+                PROTO_LIMITS_UNKNOWN:
+                    ```proto
+                    PROTO_LIMITS_UNKNOWN = 0
+                    ```
+                LEGACY_NO_EXPLICIT_LIMITS:
+                    Default pre-EDITION_2026: there are no limit enforcement at the protoc
+                    level. Practical limits still exist, but they will tend to fail while
+                    compiling protoc-generated code, and these limits tend to be language
+                    or toolchain specific.
+
+                    ```proto
+                    LEGACY_NO_EXPLICIT_LIMITS = 1
+                    ```
+                PROTO_LIMITS2026:
+                    A set of limits enforced by Edition 2026 by default. For a detailed
+                    list of all the limits please consult the Edition 2026 documentation.
+
+                    ```proto
+                    PROTO_LIMITS2026 = 2
+                    ```
+            """
+
+            PROTO_LIMITS_UNKNOWN = 0
+            LEGACY_NO_EXPLICIT_LIMITS = 1
+            PROTO_LIMITS2026 = 2
 
     class FieldPresence(Enum):
         """
@@ -3242,6 +3300,23 @@ class SourceCodeInfo(Message[_SourceCodeInfoFields]):
                   [ 4, 3, 2, 7 ]
                 this path refers to the whole field declaration (from the beginning
                 of the label to the terminating semicolon).
+
+                For options, the path refers to the interpreted option in the descriptor.
+                E.g., for a custom option `(my_opt) = "foo"` on a message using extension
+                number 10101, the path is:
+                  [ 4, 3, 7, 10101 ]
+                refers to:
+                  file.message_type(3)     // 4, 3
+                      .options()           // 7
+                      .my_opt()            // 10101
+
+                Sub-locations corresponding to the interpreted option's corresponding
+                `UninterpretedOption` are also appended to the interpreted option, which
+                deviates from the actual FileDescriptorProto path. E.g.:
+                  [ 4, 3, 7, 10101, 2 ]
+                refers to the option name `(my_opt)`, and:
+                  [ 4, 3, 7, 10101, 7 ]
+                refers to the "foo" string value of the option.
 
                 ```proto
                 repeated int32 path = 1 [packed = true];
@@ -5126,7 +5201,30 @@ _DESC = boot(
                         default_value="true",
                         oneof_index=unset(0),
                         json_name="ccEnableArenas",
-                        options=None,
+                        options=FieldOptions(
+                            ctype=unset(FieldOptions.CType.STRING),
+                            packed=unset(False),
+                            jstype=unset(FieldOptions.JSType.JS_NORMAL),
+                            lazy=unset(False),
+                            unverified_lazy=unset(False),
+                            deprecated=unset(False),
+                            weak=unset(False),
+                            debug_redact=unset(False),
+                            retention=unset(
+                                FieldOptions.OptionRetention.RETENTION_UNKNOWN
+                            ),
+                            targets=[],
+                            edition_defaults=[],
+                            features=None,
+                            feature_support=FieldOptions.FeatureSupport(
+                                edition_introduced=unset(Edition.UNKNOWN),
+                                edition_deprecated=unset(Edition.UNKNOWN),
+                                deprecation_warning=unset(""),
+                                edition_removed=Edition.EDITION_2026,
+                                removal_error="cc_enable_arenas is enabled by default in every edition and overrides are ignored.This option is removed in editions 2026 and above.",
+                            ),
+                            uninterpreted_option=[],
+                        ),
                         proto3_optional=unset(False),
                     ),
                     FieldDescriptorProto(
@@ -6092,7 +6190,26 @@ _DESC = boot(
                 nested_type=[],
                 enum_type=[],
                 extension_range=[
-                    DescriptorProto.ExtensionRange(start=990, end=999, options=None),
+                    DescriptorProto.ExtensionRange(
+                        start=990,
+                        end=999,
+                        options=ExtensionRangeOptions(
+                            uninterpreted_option=[],
+                            declaration=[
+                                ExtensionRangeOptions.Declaration(
+                                    number=998,
+                                    full_name=".pb.enumvalue.json",
+                                    type=".pb.enumvalue.JsonEnumValueOptions",
+                                    reserved=unset(False),
+                                    repeated=unset(False),
+                                )
+                            ],
+                            features=None,
+                            verification=unset(
+                                ExtensionRangeOptions.VerificationState.UNVERIFIED
+                            ),
+                        ),
+                    ),
                     DescriptorProto.ExtensionRange(
                         start=1000, end=536870912, options=None
                     ),
@@ -6704,7 +6821,7 @@ _DESC = boot(
                                     edition=Edition.EDITION_2024, value="STYLE2024"
                                 ),
                                 FieldOptions.EditionDefault(
-                                    edition=Edition.UNSTABLE, value="STYLE2026"
+                                    edition=Edition.EDITION_2026, value="STYLE2026"
                                 ),
                             ],
                             features=None,
@@ -6748,10 +6865,61 @@ _DESC = boot(
                                     edition=Edition.EDITION_2024,
                                     value="EXPORT_TOP_LEVEL",
                                 ),
+                                FieldOptions.EditionDefault(
+                                    edition=Edition.EDITION_2026, value="STRICT"
+                                ),
                             ],
                             features=None,
                             feature_support=FieldOptions.FeatureSupport(
                                 edition_introduced=Edition.EDITION_2024,
+                                edition_deprecated=unset(Edition.UNKNOWN),
+                                deprecation_warning=unset(""),
+                                edition_removed=unset(Edition.UNKNOWN),
+                                removal_error=unset(""),
+                            ),
+                            uninterpreted_option=[],
+                        ),
+                        proto3_optional=unset(False),
+                    ),
+                    FieldDescriptorProto(
+                        name="enforce_proto_limits",
+                        number=9,
+                        label=FieldDescriptorProto.Label.OPTIONAL,
+                        type=FieldDescriptorProto.Type.ENUM,
+                        type_name=".google.protobuf.FeatureSet.ProtoLimitsFeature.EnforceProtoLimits",
+                        extendee=unset(""),
+                        default_value=unset(""),
+                        oneof_index=unset(0),
+                        json_name="enforceProtoLimits",
+                        options=FieldOptions(
+                            ctype=unset(FieldOptions.CType.STRING),
+                            packed=unset(False),
+                            jstype=unset(FieldOptions.JSType.JS_NORMAL),
+                            lazy=unset(False),
+                            unverified_lazy=unset(False),
+                            deprecated=unset(False),
+                            weak=unset(False),
+                            debug_redact=unset(False),
+                            retention=FieldOptions.OptionRetention.RETENTION_SOURCE,
+                            targets=[
+                                FieldOptions.OptionTargetType.TARGET_TYPE_ENUM,
+                                FieldOptions.OptionTargetType.TARGET_TYPE_MESSAGE,
+                                FieldOptions.OptionTargetType.TARGET_TYPE_FIELD,
+                                FieldOptions.OptionTargetType.TARGET_TYPE_ONEOF,
+                            ],
+                            edition_defaults=[
+                                FieldOptions.EditionDefault(
+                                    edition=Edition.LEGACY,
+                                    value="LEGACY_NO_EXPLICIT_LIMITS",
+                                ),
+                                FieldOptions.EditionDefault(
+                                    edition=Edition.EDITION_2026,
+                                    value="PROTO_LIMITS2026",
+                                ),
+                            ],
+                            features=None,
+                            feature_support=FieldOptions.FeatureSupport(
+                                edition_introduced=Edition.EDITION_2026,
                                 edition_deprecated=unset(Edition.UNKNOWN),
                                 deprecation_warning=unset(""),
                                 edition_removed=unset(Edition.UNKNOWN),
@@ -6805,7 +6973,43 @@ _DESC = boot(
                         ],
                         reserved_name=[],
                         visibility=unset(SymbolVisibility.VISIBILITY_UNSET),
-                    )
+                    ),
+                    DescriptorProto(
+                        name="ProtoLimitsFeature",
+                        field=[],
+                        extension=[],
+                        nested_type=[],
+                        enum_type=[
+                            EnumDescriptorProto(
+                                name="EnforceProtoLimits",
+                                value=[
+                                    EnumValueDescriptorProto(
+                                        name="PROTO_LIMITS_UNKNOWN",
+                                        number=0,
+                                        options=None,
+                                    ),
+                                    EnumValueDescriptorProto(
+                                        name="LEGACY_NO_EXPLICIT_LIMITS",
+                                        number=1,
+                                        options=None,
+                                    ),
+                                    EnumValueDescriptorProto(
+                                        name="PROTO_LIMITS2026", number=2, options=None
+                                    ),
+                                ],
+                                options=None,
+                                reserved_range=[],
+                                reserved_name=[],
+                                visibility=unset(SymbolVisibility.VISIBILITY_UNSET),
+                            )
+                        ],
+                        extension_range=[],
+                        oneof_decl=[],
+                        options=None,
+                        reserved_range=[],
+                        reserved_name=[],
+                        visibility=unset(SymbolVisibility.VISIBILITY_UNSET),
+                    ),
                 ],
                 enum_type=[
                     EnumDescriptorProto(
@@ -7583,6 +7787,8 @@ _DESC = boot(
         "FeatureSet": FeatureSet,
         "FeatureSet.VisibilityFeature": FeatureSet.VisibilityFeature,
         "FeatureSet.VisibilityFeature.DefaultSymbolVisibility": FeatureSet.VisibilityFeature.DefaultSymbolVisibility,
+        "FeatureSet.ProtoLimitsFeature": FeatureSet.ProtoLimitsFeature,
+        "FeatureSet.ProtoLimitsFeature.EnforceProtoLimits": FeatureSet.ProtoLimitsFeature.EnforceProtoLimits,
         "FeatureSet.FieldPresence": FeatureSet.FieldPresence,
         "FeatureSet.EnumType": FeatureSet.EnumType,
         "FeatureSet.RepeatedFieldEncoding": FeatureSet.RepeatedFieldEncoding,
