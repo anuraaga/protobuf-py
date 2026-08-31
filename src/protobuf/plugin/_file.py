@@ -18,8 +18,9 @@ from collections import defaultdict
 from contextlib import AbstractContextManager, contextmanager
 from typing import TYPE_CHECKING, Any, Final, Protocol
 
+from typing_extensions import assert_never
+
 from protobuf import DescEnum, DescExtension, DescFile, DescMessage, ScalarType
-from protobuf._typing import assert_never
 from protobuf.plugin._ident import Ident, Module
 from protobuf.plugin._rewrite_imports import rewrite_module_path
 
@@ -46,6 +47,8 @@ _WKT_PROTO_PATHS: frozenset[str] = frozenset(
         "google/protobuf/field_mask.proto",
         "google/protobuf/go_features.proto",
         "google/protobuf/java_features.proto",
+        "google/protobuf/json_enumvalue_options.proto",
+        "google/protobuf/json_options.proto",
         "google/protobuf/source_context.proto",
         "google/protobuf/struct.proto",
         "google/protobuf/timestamp.proto",
@@ -605,7 +608,7 @@ class _AliasResolver:
         return self._resolve(Ident(candidate, ident.module)) or candidate
 
 
-def _scalar_type(scalar: ScalarType) -> str:  # noqa: RET503
+def _scalar_type(scalar: ScalarType) -> str:
     """Map a protobuf scalar type to its Python type name."""
     match scalar:
         case ScalarType.DOUBLE | ScalarType.FLOAT:

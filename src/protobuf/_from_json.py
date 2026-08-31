@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import math
 from base64 import b64decode
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal, TypeVar, cast
+
+from typing_extensions import assert_never
 
 from ._descriptors import (
     DescEnum,
@@ -32,7 +34,6 @@ from ._descriptors import (
     ScalarType,
 )
 from ._oneof import Oneof
-from ._typing import JsonValue, assert_never
 from ._validate import (
     FLOAT32_MAX,
     FLOAT32_MIN,
@@ -43,6 +44,7 @@ from ._validate import (
     UINT32_MAX,
     UINT64_MAX,
 )
+from ._wire._binary_reader import DEPTH_LIMIT
 from ._wkt_registry import (
     WktListValue,
     WktStruct,
@@ -56,15 +58,26 @@ if TYPE_CHECKING:
     from ._enum import Enum
     from ._message import Message
     from ._registry import Registry
+    from ._typing import JsonValue
     from .wkt import ListValue, NullValue, Struct, Value
 
     T = TypeVar("T", bound=Message)
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True)
 class FromJsonOptions:
     ignore_unknown_fields: bool
     registry: Registry | None
+    depth: int = 0
+    """Current message nesting depth. Mutated during a parse."""
+
+
+def _enter_message(opts: FromJsonOptions) -> FromJsonOptions:
+    opts = replace(opts, depth=opts.depth + 1)
+    if opts.depth > DEPTH_LIMIT:
+        msg = f"exceeded maximum recursion depth {DEPTH_LIMIT} while parsing message"
+        raise RecursionError(msg)
+    return opts
 
 
 def merge_from_json(
@@ -103,6 +116,11 @@ def merge_from_json(
 
 
 def _read_message(msg: Message, json: JsonValue, opts: FromJsonOptions) -> None:
+    opts = _enter_message(opts)
+    _read_message_inner(msg, json, opts)
+
+
+def _read_message_inner(msg: Message, json: JsonValue, opts: FromJsonOptions) -> None:
     if _try_wkt_from_json(msg, json, opts):
         return
     if not isinstance(json, dict):
@@ -388,6 +406,8 @@ def _read_enum(
     if isinstance(json, str):
         if value := desc._values_by_name.get(json):
             return desc.type(value.number)
+        if value := desc._values_by_json_name.get(json):
+            return desc.type(value.number)
         if ignore_unknown_fields:
             return None
 
@@ -611,6 +631,15 @@ def _list_value_from_json(
 
 
 def _value_from_json(
+    msg: Value, json: JsonValue, opts: FromJsonOptions, wkt: WktValue
+) -> None:
+    # Struct/ListValue nesting recurses through here once per JSON level
+    # without passing through _read_message, so count the depth here too.
+    opts = _enter_message(opts)
+    _value_from_json_inner(msg, json, opts, wkt)
+
+
+def _value_from_json_inner(
     msg: Value, json: JsonValue, opts: FromJsonOptions, wkt: WktValue
 ) -> None:
     match json:

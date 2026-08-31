@@ -21,6 +21,8 @@ from base64 import b64encode
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from ._descriptors import (
     DescEnum,
     DescFieldValueEnum,
@@ -33,7 +35,6 @@ from ._descriptors import (
     SupportedFieldPresence,
 )
 from ._oneof import Oneof
-from ._typing import JsonPrimitive, JsonValue, assert_never
 from ._wkt_registry import is_null_value_enum, match_wkt
 
 if TYPE_CHECKING:
@@ -41,6 +42,7 @@ if TYPE_CHECKING:
 
     from ._message import Message
     from ._registry import Registry
+    from ._typing import JsonPrimitive, JsonValue
     from .wkt import Struct, Value
 
 
@@ -107,6 +109,8 @@ def _enum_to_json_value(
     if opts.print_enums_as_ints:
         return int(value)
     if enum_value := desc_enum._values_by_number.get(value):
+        if enum_value.json_name is not None:
+            return enum_value.json_name
         return enum_value.name
     if not desc_enum.open:
         msg = f"invalid enum value {value} for enum {desc_enum.type_name}"
@@ -115,7 +119,7 @@ def _enum_to_json_value(
     return value
 
 
-def _container_value_to_json_value(  # noqa: RET503
+def _container_value_to_json_value(
     desc_element: ScalarType | DescEnum | DescMessage, value: Any, opts: ToJsonOptions
 ) -> JsonValue:
     match desc_element:

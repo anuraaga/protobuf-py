@@ -26,6 +26,8 @@ from ._gen import (
     field_mask_pb,
     go_features_pb,
     java_features_pb,
+    json_enumvalue_options_pb,
+    json_options_pb,
     source_context_pb,
     struct_pb,
     timestamp_pb,
@@ -74,6 +76,7 @@ from ._gen.empty_pb import Empty
 from ._gen.field_mask_pb import FieldMask
 from ._gen.go_features_pb import GoFeatures, ext_go
 from ._gen.java_features_pb import JavaFeatures, ext_java
+from ._gen.json_enumvalue_options_pb import JsonEnumValueOptions, ext_json
 from ._gen.source_context_pb import SourceContext
 from ._gen.struct_pb import ListValue, NullValue, Struct, Value
 from ._gen.timestamp_pb import Timestamp
@@ -126,6 +129,7 @@ __all__ = [
     "Int32Value",
     "Int64Value",
     "JavaFeatures",
+    "JsonEnumValueOptions",
     "ListValue",
     "MessageOptions",
     "Method",
@@ -162,9 +166,12 @@ __all__ = [
     "ext_csharp",
     "ext_go",
     "ext_java",
+    "ext_json",
     "field_mask_pb",
     "go_features_pb",
     "java_features_pb",
+    "json_enumvalue_options_pb",
+    "json_options_pb",
     "plugin_pb",
     "source_context_pb",
     "struct_pb",

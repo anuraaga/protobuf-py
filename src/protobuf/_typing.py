@@ -12,15 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Small set of helpers and Python 3.10 compatibility shims
+# Small set of helpers
 from __future__ import annotations
 
-from typing import NoReturn as Never, TypeAlias
+from typing import TypeAlias
 
 JsonPrimitive: TypeAlias = bool | int | float | str | None
 JsonValue: TypeAlias = JsonPrimitive | list["JsonValue"] | dict[str, "JsonValue"]
-
-
-def assert_never(value: Never) -> Never:
-    msg = f"unexpected value: {value!r}"
-    raise AssertionError(msg)

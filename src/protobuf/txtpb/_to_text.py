@@ -20,6 +20,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from typing_extensions import assert_never
+
 from protobuf._descriptors import (
     DescEnum,
     DescField,
@@ -31,7 +33,6 @@ from protobuf._descriptors import (
     DescMessage,
     ScalarType,
 )
-from protobuf._typing import assert_never
 from protobuf._wire import BinaryReader, WireType
 from protobuf._wire._binary_reader import DEPTH_LIMIT
 

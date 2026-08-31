@@ -17,7 +17,8 @@ from dataclasses import dataclass, field as dataclassfield
 from enum import IntEnum
 from typing import TYPE_CHECKING, Literal, TypeAlias, cast, final
 
-from ._typing import assert_never
+from typing_extensions import assert_never
+
 from ._wire import WireType
 
 try:
@@ -170,6 +171,10 @@ class DescEnum:
         repr=False, compare=False, hash=False
     )
     """Enum value descriptor mapping from protobuf source name, for lookup during JSON parsing."""
+    _values_by_json_name: dict[str, DescEnumValue] = dataclassfield(
+        repr=False, compare=False, hash=False
+    )
+    """Enum value descriptor mapping from custom JSON name, for lookup during JSON parsing."""
     _local_name: str
     """The name of the Python class that represents the enum."""
     _local_qualname: str
@@ -202,6 +207,8 @@ class DescEnumValue:
         local_name: A safe and idiomatic name for the value in Python.
         parent: The enumeration this value belongs to.
         number: The numeric enumeration value, as specified in the protobuf source.
+        json_name: The custom JSON name specified with the `(pb.enumvalue.json)`
+            option, or `None` if the option is not set.
         deprecated: Marked as deprecated in the protobuf source.
         proto: The compiler-generated descriptor.
     """
@@ -210,6 +217,7 @@ class DescEnumValue:
     local_name: str
     parent: DescEnum
     number: int
+    json_name: str | None
     deprecated: bool
     proto: EnumValueDescriptorProto
 
@@ -513,7 +521,7 @@ class DescFieldValueList:
     """The wire type for the unpacked encoding, used to validate when parsing an unpacked repeated field."""
 
 
-def element_wire_type(  # noqa: RET503
+def element_wire_type(
     element_type: DescMessage | DescEnum | ScalarType, *, delimited_encoding: bool
 ) -> WireType:
     match element_type:

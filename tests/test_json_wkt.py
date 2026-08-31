@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from protobuf import Message, Oneof, Registry
+from protobuf import Message, Oneof, Registry, message_from_json_value
 from protobuf.wkt import (
     Any as AnyMsg,
     BoolValue,
@@ -478,6 +478,39 @@ def test_struct_from_json_duplicate_key_inner() -> None:
 def test_list_value_from_json_error(json_str: str) -> None:
     with pytest.raises(TypeError, match="cannot decode"):
         ListValue.from_json(json_str)
+
+
+@pytest.mark.parametrize(
+    ("message_type", "json_str"),
+    [
+        pytest.param(Struct, '{"n":' * 200 + "null" + "}" * 200, id="Struct"),
+        pytest.param(ListValue, "[" * 200 + "1" + "]" * 200, id="ListValue"),
+        pytest.param(Value, '{"n":' * 200 + "null" + "}" * 200, id="Value"),
+    ],
+)
+def test_from_json_deep_nesting_rejected(
+    message_type: type[Message], json_str: str
+) -> None:
+    with pytest.raises(RecursionError, match="exceeded maximum recursion depth"):
+        message_type.from_json(json_str)
+    with pytest.raises(RecursionError, match="exceeded maximum recursion depth"):
+        message_from_json_value(message_type, json.loads(json_str))
+
+
+@pytest.mark.parametrize(
+    ("message_type", "json_str"),
+    [
+        pytest.param(Struct, '{"n":' * 25 + "null" + "}" * 25, id="Struct"),
+        pytest.param(ListValue, "[" * 25 + "1" + "]" * 25, id="ListValue"),
+        pytest.param(Value, '{"n":' * 25 + "null" + "}" * 25, id="Value"),
+    ],
+)
+def test_from_json_deep_nesting_within_limit(
+    message_type: type[Message], json_str: str
+) -> None:
+    assert message_type.from_json(json_str) == message_from_json_value(
+        message_type, json.loads(json_str)
+    )
 
 
 @pytest.mark.parametrize(
