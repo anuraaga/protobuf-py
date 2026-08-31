@@ -38,7 +38,7 @@ jobs:
           - python-version: ${{ github.event_name == 'pull_request' && '3.15t' }}
     env:
       # When bumping, also bump top-level env in release.yaml
-      MATURIN_ARGS: ${{ (matrix.python-version == '3.10' || matrix.python-version == '3.11') && '--features pyo3/abi3-py310' || '' }}
+      MATURIN_ARGS: ${{ matrix.python-version == '3.11' && '--features pyo3/abi3-py311' || '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv with Python ${{ matrix.python-version }}

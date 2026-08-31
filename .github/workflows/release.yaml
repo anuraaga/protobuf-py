@@ -16,9 +16,9 @@ permissions:
 env:
   # When bumping, also bump MATURIN_ARGS in ci.yaml
   # maturin flags to build targets we publish non-abi3 wheels for
-  UNSTABLE_API_FLAGS: -i 3.12 -i 3.13 -i 3.14 -i 3.14t
+  UNSTABLE_API_FLAGS: -i 3.10 -i 3.12 -i 3.13 -i 3.14 -i 3.14t
   # maturin flags to build targets we publish abi3 wheels for
-  ABI3_FLAGS: -i 3.10 --features pyo3/abi3-py310
+  ABI3_FLAGS: -i 3.11 --features pyo3/abi3-py311
 
 jobs:
   ext-linux:
