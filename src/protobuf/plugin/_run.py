@@ -21,6 +21,7 @@ from typing import IO, TYPE_CHECKING, Any, TypeVar, cast, overload
 from protobuf import maximum_supported_edition, minimum_supported_edition
 from protobuf.plugin._file import write
 from protobuf.plugin._options import parse_options
+from protobuf.plugin._rewrite_imports import compile_rewrite_imports
 from protobuf.plugin._schema import _Schema
 from protobuf.wkt import CodeGeneratorRequest, CodeGeneratorResponse
 
@@ -167,6 +168,7 @@ def run(
             name=name,
             version=version,
             escape_module_with_hash=fw_opts.escape_module_with_hash,
+            rewrite_imports=compile_rewrite_imports(fw_opts.rewrite_imports),
         )
 
         generate(schema)
@@ -230,3 +232,4 @@ def _parse_plugin_options(
 class _FrameworkOptions:
     no_fmt_off: bool = False
     escape_module_with_hash: bool = False
+    rewrite_imports: dict[str, str] = dataclasses.field(default_factory=dict)

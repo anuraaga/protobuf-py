@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
     from protobuf.wkt import CodeGeneratorRequest
 
+    from ._rewrite_imports import RewriteImports
+
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -96,6 +98,7 @@ class _Schema(Generic[T_co]):
         name: str,
         version: str,
         escape_module_with_hash: bool,
+        rewrite_imports: RewriteImports = (),
     ) -> None:
         self._options = options
         self._name = name
@@ -103,6 +106,7 @@ class _Schema(Generic[T_co]):
         self._parameter = req.parameter
         self._generated_files: dict[str, _File] = {}
         self._escape_module_with_hash = escape_module_with_hash
+        self._rewrite_imports = rewrite_imports
 
         file_to_generate = frozenset(req.file_to_generate)
         source_by_name = {s.name: s for s in req.source_file_descriptors}
@@ -166,6 +170,7 @@ class _Schema(Generic[T_co]):
             self._version,
             self._parameter,
             escape_module_with_hash=self._escape_module_with_hash,
+            rewrite_imports=self._rewrite_imports,
         )
         self._generated_files[path] = f
         return f
