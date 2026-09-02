@@ -735,7 +735,7 @@ wheels = [
 
 [[package]]
 name = "protobuf-py"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "typing-extensions" },
@@ -887,7 +887,7 @@ requires-dist = [
 
 [[package]]
 name = "protobuf-py-ext"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "packages/protobuf-py-ext" }
 
 [package.dev-dependencies]
@@ -902,7 +902,7 @@ dev = [{ name = "maturin", specifier = "==1.15.0" }]
 
 [[package]]
 name = "protoc-gen-py"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "packages/protoc-gen-py" }
 dependencies = [
     { name = "protobuf-py" },
