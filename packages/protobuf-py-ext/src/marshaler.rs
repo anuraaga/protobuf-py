@@ -7,7 +7,7 @@ use pyo3::{
     pyclass,
     types::{
         PyAnyMethods as _, PyBytes, PyDict, PyDictMethods as _, PyList, PyStringMethods as _,
-        PyType, PyTypeMethods as _,
+        PyType,
     },
 };
 
@@ -204,12 +204,13 @@ impl MessageMarshaler {
                     .push((member.attr.clone_ref(py), default.unbind()));
             }
         }
-        // tp_basicsize is the exact instance allocation size: message types
-        // only use slots, so instances never grow beyond it. The GC header is
-        // allocated in front of every instance on top of it.
-        // SAFETY - the type pointer of a live PyType is always valid.
-        let basic_size = unsafe { (*python_type.as_type_ptr()).tp_basicsize };
-        let base_alloc_size = usize::try_from(basic_size).unwrap_or(0)
+        // __basicsize__ (tp_basicsize) is the exact instance allocation size:
+        // message types only use slots, so instances never grow beyond it. The
+        // GC header is allocated in front of every instance on top of it.
+        let basic_size = python_type
+            .getattr(&constants.dunder_basicsize)?
+            .extract::<usize>()?;
+        let base_alloc_size = basic_size
             + budget::GC_HEAD_SIZE
             + defaults.lists.len() * budget::EMPTY_LIST_SIZE
             + defaults.dicts.len() * budget::EMPTY_DICT_SIZE;
