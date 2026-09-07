@@ -398,3 +398,44 @@ class TestWireTypeMismatch:
         # Should be enough to check every field is there without asserting the content.
         assert msg._unknown_fields is not None
         assert {2, 3} == set(msg._unknown_fields.keys())
+
+
+class TestAllocationLimit:
+    def test_within_limit(self) -> None:
+        data = Scalars(string_field="a" * 1000).to_binary()
+        msg = Scalars.from_binary(data, allocation_limit=1024 * 1024)
+        assert msg.string_field == "a" * 1000
+
+    def test_string_exceeds_limit(self) -> None:
+        data = Scalars(string_field="a" * 1000).to_binary()
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            Scalars.from_binary(data, allocation_limit=500)
+
+    def test_repeated_exceeds_limit(self) -> None:
+        data = Lists(string_list=["a" * 100] * 100).to_binary()
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            Lists.from_binary(data, allocation_limit=5000)
+
+    def test_nested_messages_exceed_limit(self) -> None:
+        data = Lists(msg_list=[Lists.Msg() for _ in range(1000)]).to_binary()
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            Lists.from_binary(data, allocation_limit=10_000)
+
+    def test_unknown_fields_exceed_limit(self) -> None:
+        w = BinaryWriter()
+        w.tag(1000, WireType.LENGTH_DELIMITED)
+        w.bytes_(b"x" * 10_000)
+        data = w.finish()
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            Scalars.from_binary(data, allocation_limit=5000)
+
+    def test_no_limit_by_default(self) -> None:
+        data = Lists(string_list=["a" * 100] * 100).to_binary()
+        msg = Lists.from_binary(data)
+        assert len(msg.string_list) == 100
+
+    def test_merge_from_binary_limit(self) -> None:
+        data = Scalars(string_field="a" * 1000).to_binary()
+        msg = Scalars()
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            merge_from_binary(msg, data, allocation_limit=500)

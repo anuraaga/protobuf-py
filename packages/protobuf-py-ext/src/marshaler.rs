@@ -7,12 +7,13 @@ use pyo3::{
     pyclass,
     types::{
         PyAnyMethods as _, PyBytes, PyDict, PyDictMethods as _, PyList, PyStringMethods as _,
-        PyType,
+        PyType, PyTypeMethods as _,
     },
 };
 
 use crate::{
     attribute_access::AttributeAccess,
+    budget::{self, Budget},
     constants::Constants,
     descriptor::{DescFieldValue, message_fields},
     nativemessage::NativeMessage,
@@ -73,6 +74,11 @@ pub(crate) struct MessageMarshalerInner {
 
     /// The maximum field number of the message.
     pub(crate) max_field_number: u32,
+
+    /// Approximate heap size of a freshly-initialized instance of this
+    /// message type: the fixed instance size (all fields are slots) plus the
+    /// empty containers created for repeated/map field defaults.
+    pub(crate) base_alloc_size: usize,
 
     /// The Python type of the message.
     pub(crate) python_type: Py<PyType>,
@@ -198,6 +204,15 @@ impl MessageMarshaler {
                     .push((member.attr.clone_ref(py), default.unbind()));
             }
         }
+        // tp_basicsize is the exact instance allocation size: message types
+        // only use slots, so instances never grow beyond it. The GC header is
+        // allocated in front of every instance on top of it.
+        // SAFETY - the type pointer of a live PyType is always valid.
+        let basic_size = unsafe { (*python_type.as_type_ptr()).tp_basicsize };
+        let base_alloc_size = usize::try_from(basic_size).unwrap_or(0)
+            + budget::GC_HEAD_SIZE
+            + defaults.lists.len() * budget::EMPTY_LIST_SIZE
+            + defaults.dicts.len() * budget::EMPTY_DICT_SIZE;
         Ok(Self {
             inner: Arc::new(MessageMarshalerInner {
                 parser,
@@ -205,6 +220,7 @@ impl MessageMarshaler {
                 members_by_name: members_by_name.unbind(),
                 members,
                 max_field_number,
+                base_alloc_size,
                 python_type: python_type.clone().unbind(),
                 type_name,
                 wkt,
@@ -222,6 +238,7 @@ impl MessageMarshaler {
         message: &Bound<'_, NativeMessage>,
         mut data: Bytes,
         ignore_unknown_fields: bool,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         self.inner.parser.merge_from_binary(
             py,
@@ -231,6 +248,7 @@ impl MessageMarshaler {
                 ignore_unknown_fields,
             },
             0,
+            budget,
         )
     }
 
