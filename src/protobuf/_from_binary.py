@@ -22,10 +22,12 @@ from typing_extensions import Buffer, assert_never
 from ._budget import (
     BYTES_OVERHEAD,
     DICT_ENTRY_SIZE,
+    FLOAT_SIZE,
     GC_HEAD_SIZE,
     INT_SIZE,
     LIST_SLOT_SIZE,
     ONEOF_SIZE,
+    STR_OVERHEAD,
     Budget,
 )
 from ._descriptors import (
@@ -78,10 +80,10 @@ _SCALAR_READERS = (
     BinaryReader.fixed64,  # 6: FIXED64
     BinaryReader.fixed32,  # 7: FIXED32
     BinaryReader.bool_,  # 8: BOOL
-    BinaryReader.string,  # 9: STRING
+    None,  # 9: STRING (length-delimited, handled in read_scalar)
     None,  # 10: GROUP
     None,  # 11: MESSAGE
-    BinaryReader.bytes_,  # 12: BYTES
+    None,  # 12: BYTES (length-delimited, handled in read_scalar)
     BinaryReader.uint32,  # 13: UINT32
     None,  # 14: ENUM
     BinaryReader.sfixed32,  # 15: SFIXED32
@@ -90,13 +92,45 @@ _SCALAR_READERS = (
     BinaryReader.sint64,  # 18: SINT64
 )
 
+# Allocation charged for each fixed-size scalar before it is read, indexed like
+# _SCALAR_READERS. Bools are shared singletons and allocate nothing.
+_SCALAR_CHARGES = (
+    None,  # 0: unused
+    FLOAT_SIZE,  # 1: DOUBLE
+    FLOAT_SIZE,  # 2: FLOAT
+    INT_SIZE,  # 3: INT64
+    INT_SIZE,  # 4: UINT64
+    INT_SIZE,  # 5: INT32
+    INT_SIZE,  # 6: FIXED64
+    INT_SIZE,  # 7: FIXED32
+    0,  # 8: BOOL
+    None,  # 9: STRING
+    None,  # 10: GROUP
+    None,  # 11: MESSAGE
+    None,  # 12: BYTES
+    INT_SIZE,  # 13: UINT32
+    None,  # 14: ENUM
+    INT_SIZE,  # 15: SFIXED32
+    INT_SIZE,  # 16: SFIXED64
+    INT_SIZE,  # 17: SINT32
+    INT_SIZE,  # 18: SINT64
+)
+
 
 def read_scalar(scalar_type: ScalarType, reader: BinaryReader, budget: Budget) -> Any:
+    if scalar_type == ScalarType.STRING:
+        length = reader.varint()
+        budget.charge(STR_OVERHEAD + length)
+        return str(reader.read(length), "utf-8")
+    if scalar_type == ScalarType.BYTES:
+        length = reader.varint()
+        budget.charge(BYTES_OVERHEAD + length)
+        return bytes(reader.read(length))
+    charge = _SCALAR_CHARGES[scalar_type.value]
     reader_method = _SCALAR_READERS[scalar_type.value]
-    assert reader_method is not None  # noqa: S101
-    value = reader_method(reader)
-    budget.charge_scalar(scalar_type, value)
-    return value
+    assert charge is not None and reader_method is not None  # noqa: S101, PT018
+    budget.charge(charge)
+    return reader_method(reader)
 
 
 # TODO delete this, and either:
