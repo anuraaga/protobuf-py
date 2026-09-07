@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math
 from base64 import b64decode
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 from typing_extensions import assert_never
@@ -81,8 +81,8 @@ class FromJsonOptions:
     registry: Registry | None
     depth: int = 0
     """Current message nesting depth. Mutated during a parse."""
-    budget: Budget | None = None
-    """Optional allocation budget shared across the whole parse."""
+    budget: Budget = field(default_factory=Budget)
+    """Allocation budget shared across the whole parse. Unlimited by default."""
 
 
 def _enter_message(opts: FromJsonOptions) -> FromJsonOptions:
@@ -232,7 +232,7 @@ def _read_scalar_extension(
     ext: DescExtension,
     field_value: DescFieldValueScalar,
     json: JsonValue,
-    budget: Budget | None,
+    budget: Budget,
 ) -> None:
     if json is None:
         del msg[ext.type]
@@ -267,8 +267,8 @@ def _read_message_extension(
     if _is_resetting_null(field_value.message, json):
         del msg[ext.type]
     else:
-        if (budget := opts.budget) is not None:
-            budget.charge_message(field_value.message.type)
+        budget = opts.budget
+        budget.charge_message(field_value.message.type)
         value = field_value.message.type()
         _read_message(value, json, opts)
         msg[ext.type] = value
@@ -286,14 +286,12 @@ def _read_list_extension(
     if not isinstance(json, list):
         raise _field_error(ext, f"expected list got {type(json)}", TypeError)
     budget = opts.budget
-    if budget is not None:
-        budget.charge(EMPTY_LIST_SIZE)
+    budget.charge(EMPTY_LIST_SIZE)
     values = []
     for element in json:
         v = _read_container_item(ext, field_value.element, element, opts)
         if v is not None:
-            if budget is not None:
-                budget.charge(LIST_SLOT_SIZE)
+            budget.charge(LIST_SLOT_SIZE)
             values.append(v)
     msg[ext.type] = values
 
@@ -303,13 +301,13 @@ def _read_scalar_field(
     field: DescField,
     field_value: DescFieldValueScalar,
     json: JsonValue,
-    budget: Budget | None,
+    budget: Budget,
 ) -> None:
     if json is None:
         msg._del_member(field)
         return
     value = _read_scalar(field, field_value.scalar, json, budget)
-    if budget is not None and field_value.oneof is not None:
+    if field_value.oneof is not None:
         budget.charge(ONEOF_SIZE)
     msg._set_member(field, value)
 
@@ -326,8 +324,8 @@ def _read_enum_field(
         return
     value = _read_enum(field_value.enum, json, opts.ignore_unknown_fields, opts.budget)
     if value is not None:
-        if (budget := opts.budget) is not None and field_value.oneof is not None:
-            budget.charge(ONEOF_SIZE)
+        if field_value.oneof is not None:
+            opts.budget.charge(ONEOF_SIZE)
         msg._set_member(field, value)
 
 
@@ -346,8 +344,7 @@ def _read_list_field(
     for element in json:
         value = _read_container_item(field, field_value.element, element, opts)
         if value is not None:
-            if budget is not None:
-                budget.charge(LIST_SLOT_SIZE)
+            budget.charge(LIST_SLOT_SIZE)
             list_.append(value)
 
 
@@ -367,8 +364,7 @@ def _read_map_field(
         key = _read_map_key(field, field_value, json_key, budget)
         value = _read_container_item(field, field_value.value, json_value, opts)
         if value is not None:
-            if budget is not None:
-                budget.charge(DICT_ENTRY_SIZE)
+            budget.charge(DICT_ENTRY_SIZE)
             dict_[key] = value
 
 
@@ -386,20 +382,16 @@ def _read_message_field(
     if msg._contains_member(field):
         value = msg._get_member(field)
     else:
-        if budget is not None:
-            budget.charge_message(field_value.message.type)
+        budget.charge_message(field_value.message.type)
         value = field_value.message.type()
     _read_message(value, json, opts)
-    if budget is not None and field_value.oneof is not None:
+    if field_value.oneof is not None:
         budget.charge(ONEOF_SIZE)
     msg._set_member(field, value)
 
 
 def _read_map_key(
-    field: DescField,
-    field_value: DescFieldValueMap,
-    json: JsonValue,
-    budget: Budget | None,
+    field: DescField, field_value: DescFieldValueMap, json: JsonValue, budget: Budget
 ) -> bool | int | str:
     match field_value.key:
         case ScalarType.BOOL:
@@ -410,8 +402,7 @@ def _read_map_key(
             raise _field_error(field, f"unexpected bool map key value {json}")
         case ScalarType.STRING:
             key = _read_string(field, json)
-            if budget is not None:
-                budget.charge(STR_OVERHEAD + len(key))
+            budget.charge(STR_OVERHEAD + len(key))
             return key
         case (
             ScalarType.DOUBLE | ScalarType.FLOAT | ScalarType.BYTES
@@ -419,8 +410,7 @@ def _read_map_key(
             msg = f"invalid map key type: {field_value.key}"
             raise AssertionError(msg)
         case _:
-            if budget is not None:
-                budget.charge(INT_SIZE)
+            budget.charge(INT_SIZE)
             return _read_int(field, field_value.key, json)
 
 
@@ -433,8 +423,8 @@ def _read_container_item(
     if isinstance(element, ScalarType) and json is not None:
         return _read_scalar(field, element, json, opts.budget)
     if isinstance(element, DescMessage) and not _is_resetting_null(element, json):
-        if (budget := opts.budget) is not None:
-            budget.charge_message(element.type)
+        budget = opts.budget
+        budget.charge_message(element.type)
         msg = element.type()
         _read_message(msg, json, opts)
         return msg
@@ -450,7 +440,7 @@ def _read_enum(
     desc: DescEnum,
     json: JsonValue,
     ignore_unknown_fields: bool,  # noqa: FBT001
-    budget: Budget | None = None,
+    budget: Budget,
 ) -> Enum | None:
     if json is None:
         return desc.type(desc.values[0].number)
@@ -462,8 +452,7 @@ def _read_enum(
         if ignore_unknown_fields:
             return None
         # Succeeds for open enum, raises an error for closed
-        if budget is not None:
-            budget.charge(INT_SIZE + GC_HEAD_SIZE)
+        budget.charge(INT_SIZE + GC_HEAD_SIZE)
         return desc.type(json)
     if isinstance(json, str):
         if value := desc._values_by_name.get(json):
@@ -481,11 +470,10 @@ def _read_scalar(
     desc: DescField | DescExtension,
     scalar_type: ScalarType,
     json: JsonValue,
-    budget: Budget | None = None,
+    budget: Budget,
 ) -> bool | int | float | str | bytes:
     value = _read_scalar_value(desc, scalar_type, json)
-    if budget is not None:
-        budget.charge_scalar(scalar_type, value)
+    budget.charge_scalar(scalar_type, value)
     return value
 
 
@@ -681,12 +669,10 @@ def _struct_from_json(
     assert isinstance(value_wkt, WktValue)  # noqa: S101
     budget = opts.budget
     for k, v in json.items():
-        if budget is not None:
-            budget.charge_message(value_desc.type)
+        budget.charge_message(value_desc.type)
         val = cast("Value", value_desc.type())
         _value_from_json(val, v, opts, value_wkt)
-        if budget is not None:
-            budget.charge(DICT_ENTRY_SIZE + STR_OVERHEAD + len(k))
+        budget.charge(DICT_ENTRY_SIZE + STR_OVERHEAD + len(k))
         msg.fields[k] = val
 
 
@@ -705,12 +691,10 @@ def _list_value_from_json(
     assert isinstance(element_wkt, WktValue)  # noqa: S101
     budget = opts.budget
     for e in json:
-        if budget is not None:
-            budget.charge_message(element_desc.type)
+        budget.charge_message(element_desc.type)
         val = cast("Value", element_desc.type())
         _value_from_json(val, e, opts, element_wkt)
-        if budget is not None:
-            budget.charge(LIST_SLOT_SIZE)
+        budget.charge(LIST_SLOT_SIZE)
         msg.values.append(val)
 
 
@@ -727,21 +711,7 @@ def _value_from_json_inner(
     msg: Value, json: JsonValue, opts: FromJsonOptions, wkt: WktValue
 ) -> None:
     budget = opts.budget
-    if budget is not None:
-        budget.charge(ONEOF_SIZE)
-        match json:
-            case bool() | None:
-                pass
-            case int() | float():
-                budget.charge(FLOAT_SIZE)
-            case str():
-                budget.charge(STR_OVERHEAD + len(json))
-            case list():
-                budget.charge_message(wkt.list_value.message.type)
-            case dict():
-                budget.charge_message(wkt.struct_value.message.type)
-            case _:
-                pass
+    budget.charge(ONEOF_SIZE)
     match json:
         case None:
             msg.kind = Oneof(
@@ -750,10 +720,13 @@ def _value_from_json_inner(
         case bool():
             msg.kind = Oneof("bool_value", json)
         case int() | float():
+            budget.charge(FLOAT_SIZE)
             msg.kind = Oneof("number_value", float(json))
         case str():
+            budget.charge(STR_OVERHEAD + len(json))
             msg.kind = Oneof("string_value", json)
         case list():
+            budget.charge_message(wkt.list_value.message.type)
             lv_desc = wkt.list_value.message
             lv_wkt = match_wkt(lv_desc)
             assert isinstance(lv_wkt, WktListValue)  # noqa: S101
@@ -761,6 +734,7 @@ def _value_from_json_inner(
             _list_value_from_json(lv, json, opts, lv_wkt.values)
             msg.kind = Oneof("list_value", lv)
         case dict():
+            budget.charge_message(wkt.struct_value.message.type)
             struct_desc = wkt.struct_value.message
             struct_wkt = match_wkt(struct_desc)
             assert isinstance(struct_wkt, WktStruct)  # noqa: S101

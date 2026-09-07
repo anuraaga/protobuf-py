@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+import sys
 from functools import cache
 from typing import TYPE_CHECKING, cast
 
@@ -75,9 +76,9 @@ class Budget:
 
     __slots__ = ("current", "max")
 
-    def __init__(self, limit: int) -> None:
+    def __init__(self, limit: int | None = None) -> None:
         self.current = 0
-        self.max = limit
+        self.max = sys.maxsize if limit is None else limit
 
     def charge(self, amount: int) -> None:
         self.current += amount

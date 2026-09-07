@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from typing_extensions import Buffer, assert_never
@@ -56,12 +56,12 @@ class FromBinaryOptions:
 
     Args:
         ignore_unknown_fields: If `True`, unknown fields are ignored instead of being added to the message.
-        budget: If set, tracks approximate allocations during the parse and
-            raises once the configured limit is exceeded.
+        budget: Tracks approximate allocations during the parse and raises
+            once the configured limit is exceeded. Unlimited by default.
     """
 
     ignore_unknown_fields: bool = False
-    budget: Budget | None = None
+    budget: Budget = field(default_factory=Budget)
 
 
 # Dispatch table for reading scalar values. CPython currently does not generate
@@ -91,14 +91,11 @@ _SCALAR_READERS = (
 )
 
 
-def read_scalar(
-    scalar_type: ScalarType, reader: BinaryReader, budget: Budget | None = None
-) -> Any:
+def read_scalar(scalar_type: ScalarType, reader: BinaryReader, budget: Budget) -> Any:
     reader_method = _SCALAR_READERS[scalar_type.value]
     assert reader_method is not None  # noqa: S101
     value = reader_method(reader)
-    if budget is not None:
-        budget.charge_scalar(scalar_type, value)
+    budget.charge_scalar(scalar_type, value)
     return value
 
 
@@ -145,10 +142,10 @@ def read_message(
             field_raw = reader.skip(tag.wire_type, depth + 1, field_number=tag.number)
             if not opts.ignore_unknown_fields:
                 key_raw = _encode_varint((tag.number << 3) | tag.wire_type)
-                if (budget := opts.budget) is not None:
-                    budget.charge(
-                        BYTES_OVERHEAD + len(key_raw) + len(field_raw) + LIST_SLOT_SIZE
-                    )
+                budget = opts.budget
+                budget.charge(
+                    BYTES_OVERHEAD + len(key_raw) + len(field_raw) + LIST_SLOT_SIZE
+                )
                 message._get_or_init_unknown_fields().setdefault(tag.number, []).append(
                     key_raw + bytes(field_raw)
                 )
@@ -158,7 +155,7 @@ def read_message(
         match field_value := desc_field.value:
             case DescFieldValueScalar():
                 value = read_scalar(field_value.scalar, reader, budget)
-                if budget is not None and field_value.oneof is not None:
+                if field_value.oneof is not None:
                     budget.charge(ONEOF_SIZE)
                 message._set_member(desc_field, value)
             case DescFieldValueMessage(
@@ -166,10 +163,9 @@ def read_message(
             ):
                 existing: Message | None = message._get_member(desc_field)
                 if existing is None:
-                    if budget is not None:
-                        budget.charge_message(desc_nested_message.type)
-                        if field_value.oneof is not None:
-                            budget.charge(ONEOF_SIZE)
+                    budget.charge_message(desc_nested_message.type)
+                    if field_value.oneof is not None:
+                        budget.charge(ONEOF_SIZE)
                     existing = desc_nested_message.type()
                     message._set_member(desc_field, existing)
                 if delimited_encoding:
@@ -183,7 +179,7 @@ def read_message(
             case DescFieldValueEnum():
                 value = read_enum(field_value.enum, reader, budget)
                 if isinstance(value, Enum):
-                    if budget is not None and field_value.oneof is not None:
+                    if field_value.oneof is not None:
                         budget.charge(ONEOF_SIZE)
                     message._set_member(desc_field, value)
                 elif not opts.ignore_unknown_fields:
@@ -205,8 +201,7 @@ def read_message(
                 )
                 if entry:
                     key, value = entry
-                    if budget is not None:
-                        budget.charge(DICT_ENTRY_SIZE)
+                    budget.charge(DICT_ENTRY_SIZE)
                     message._get_member(desc_field)[key] = value
             case _:
                 assert_never(desc_field)
@@ -237,10 +232,10 @@ def read_list(
         field_bytes = reader.skip(wire_type, depth + 1, field_number=field_number)
         if not opts.ignore_unknown_fields and message:
             key_raw = _encode_varint((field_number << 3) | wire_type)
-            if (budget := opts.budget) is not None:
-                budget.charge(
-                    BYTES_OVERHEAD + len(key_raw) + len(field_bytes) + LIST_SLOT_SIZE
-                )
+            budget = opts.budget
+            budget.charge(
+                BYTES_OVERHEAD + len(key_raw) + len(field_bytes) + LIST_SLOT_SIZE
+            )
             message._get_or_init_unknown_fields().setdefault(field_number, []).append(
                 key_raw + bytes(field_bytes)
             )
@@ -251,8 +246,7 @@ def read_list(
         case ScalarType():
             value = read_scalar(element_type, reader, budget)
         case DescMessage():
-            if budget is not None:
-                budget.charge_message(element_type.type)
+            budget.charge_message(element_type.type)
             if field_value.delimited_encoding:
                 value = read_message(
                     element_type.type(),
@@ -273,8 +267,7 @@ def read_list(
                 return
         case _:
             assert_never(element_type)
-    if budget is not None:
-        budget.charge(LIST_SLOT_SIZE)
+    budget.charge(LIST_SLOT_SIZE)
     list_.append(value)
 
 
@@ -293,14 +286,12 @@ def _read_packed_list(
         match element_type:
             case ScalarType():
                 value = read_scalar(element_type, reader, budget)
-                if budget is not None:
-                    budget.charge(LIST_SLOT_SIZE)
+                budget.charge(LIST_SLOT_SIZE)
                 list_.append(value)
             case DescEnum():
                 value = read_enum(element_type, reader, budget)
                 if isinstance(value, Enum):
-                    if budget is not None:
-                        budget.charge(LIST_SLOT_SIZE)
+                    budget.charge(LIST_SLOT_SIZE)
                     list_.append(value)
                 elif not opts.ignore_unknown_fields:
                     # Even for packed fields we write unknown enum values as unpacked.
@@ -309,20 +300,17 @@ def _read_packed_list(
                 assert_never(element_type)
 
 
-def read_enum(
-    desc_enum: DescEnum, reader: BinaryReader, budget: Budget | None = None
-) -> Enum | int:
+def read_enum(desc_enum: DescEnum, reader: BinaryReader, budget: Budget) -> Enum | int:
     value = reader.int32()
     if not desc_enum._values_by_number.get(value):
         if not desc_enum.open:
             return value
-        if budget is not None:
-            budget.charge(INT_SIZE + GC_HEAD_SIZE)
+        budget.charge(INT_SIZE + GC_HEAD_SIZE)
     return desc_enum.type(value)
 
 
 def _write_unknown_enum_field(
-    message: Message | None, field_number: int, value: int, budget: Budget | None = None
+    message: Message | None, field_number: int, value: int, budget: Budget
 ) -> None:
     if message is None:
         return
@@ -330,8 +318,7 @@ def _write_unknown_enum_field(
     writer.tag(field_number, WireType.VARINT)
     writer.int32(value)
     field_bytes = writer.finish()
-    if budget is not None:
-        budget.charge(BYTES_OVERHEAD + len(field_bytes) + LIST_SLOT_SIZE)
+    budget.charge(BYTES_OVERHEAD + len(field_bytes) + LIST_SLOT_SIZE)
     message._get_or_init_unknown_fields().setdefault(field_number, []).append(
         field_bytes
     )
@@ -379,8 +366,7 @@ def read_map_entry(
                         )
                         return None
                 case DescMessage():
-                    if budget is not None:
-                        budget.charge_message(field_value.value.type)
+                    budget.charge_message(field_value.value.type)
                     value = field_value.value.type()
                     read_message(value, reader, opts, depth + 1, length=reader.varint())
                 case _:
@@ -397,8 +383,7 @@ def read_map_entry(
             case DescEnum() as desc_enum:
                 value = desc_enum.type(desc_enum.values[0].number)
             case DescMessage():
-                if budget is not None:
-                    budget.charge_message(field_value.value.type)
+                budget.charge_message(field_value.value.type)
                 value = field_value.value.type()
             case _:
                 assert_never(field_value.value)
@@ -422,10 +407,8 @@ def _read_unknown_map_entry(
     )
     if not opts.ignore_unknown_fields and message:
         key_raw = _encode_varint((field_number << 3) | WireType.LENGTH_DELIMITED)
-        if (budget := opts.budget) is not None:
-            budget.charge(
-                BYTES_OVERHEAD + len(key_raw) + len(entry_bytes) + LIST_SLOT_SIZE
-            )
+        budget = opts.budget
+        budget.charge(BYTES_OVERHEAD + len(key_raw) + len(entry_bytes) + LIST_SLOT_SIZE)
         message._get_or_init_unknown_fields().setdefault(field_number, []).append(
             key_raw + bytes(entry_bytes)
         )

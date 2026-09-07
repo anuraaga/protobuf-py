@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, overload
 from typing_extensions import Buffer, TypeVar
 
 from . import _native_message
+from ._budget import Budget
 from ._descriptors import (
     DescField,
     DescFieldValueEnum,
@@ -697,15 +698,11 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         ignore_unknown_fields: bool,  # noqa: FBT001
         allocation_limit: int | None = None,
     ) -> None:
-        from ._budget import Budget  # noqa: PLC0415
-
-        budget = None
-        if allocation_limit is not None:
-            budget = Budget(allocation_limit)
-            # The root is charged here rather than in from_binary so both
-            # entry points share one budget semantic; a merge into an
-            # existing message overcharges by one base size.
-            budget.charge_message(type(self))
+        budget = Budget(allocation_limit)
+        # The root is charged here rather than in from_binary so both entry
+        # points share one budget semantic; a merge into an existing message
+        # overcharges by one base size.
+        budget.charge_message(type(self))
         opts = FromBinaryOptions(
             ignore_unknown_fields=ignore_unknown_fields, budget=budget
         )
@@ -722,17 +719,13 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
     ) -> None:
         from json import loads as parse_json  # noqa: PLC0415
 
-        from ._budget import Budget  # noqa: PLC0415
-
         # Needs to be lazy import since JSON specially handles many WKTs.
         from ._from_json import FromJsonOptions, _read_message  # noqa: PLC0415
 
         json_value = parse_json(json)
-        budget = None
-        if allocation_limit is not None:
-            budget = Budget(allocation_limit)
-            # See _merge_from_binary for why the root is charged here.
-            budget.charge_message(type(self))
+        budget = Budget(allocation_limit)
+        # See _merge_from_binary for why the root is charged here.
+        budget.charge_message(type(self))
         opts = FromJsonOptions(
             ignore_unknown_fields=ignore_unknown_fields,
             registry=registry,
@@ -778,15 +771,11 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         registry: Registry | None = None,
         allocation_limit: int | None = None,
     ) -> Self:
-        from ._budget import Budget  # noqa: PLC0415
-
         # Needs to be lazy import since JSON specially handles many WKTs.
         from ._from_json import FromJsonOptions, _read_message  # noqa: PLC0415
 
-        budget = None
-        if allocation_limit is not None:
-            budget = Budget(allocation_limit)
-            budget.charge_message(cls)
+        budget = Budget(allocation_limit)
+        budget.charge_message(cls)
         message = cls()
         _read_message(
             message,
