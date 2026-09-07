@@ -478,7 +478,7 @@ fn read_map_key<'py>(
             )),
         },
         ScalarType::String => {
-            budget.charge(budget::STR_OVERHEAD + raw_key.len())?;
+            budget.charge(budget::STR_OVERHEAD + raw_key.chars().count())?;
             Ok(PyString::new(py, raw_key).into_any())
         }
         _ => {
@@ -978,7 +978,8 @@ pub(crate) fn read_json_value<'py, R: JsonSource<'py>>(
             let dict = PyDict::new(py);
             src.for_each_object_key(|key, src| {
                 let value = read_json_value(src, budget)?;
-                budget.charge(budget::DICT_ENTRY_SIZE + budget::STR_OVERHEAD + key.len())?;
+                budget
+                    .charge(budget::DICT_ENTRY_SIZE + budget::STR_OVERHEAD + key.chars().count())?;
                 dict.set_item(PyString::new(py, key), value)?;
                 Ok(())
             })?;

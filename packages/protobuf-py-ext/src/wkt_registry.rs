@@ -258,7 +258,7 @@ impl WktAny {
         // Any.pack
         let packed_url = format!("type.googleapis.com/{}", inner_marshaler.type_name);
         let packed_value = inner_marshaler.to_binary(py, &inner_msg, true)?;
-        budget.charge(budget::STR_OVERHEAD + packed_url.len())?;
+        budget.charge(budget::STR_OVERHEAD + packed_url.chars().count())?;
         budget.charge(budget::BYTES_OVERHEAD + packed_value.as_bytes().len())?;
         self.type_url
             .set(message.as_any(), &PyString::new(py, &packed_url).into_any())?;
@@ -329,7 +329,8 @@ impl WktFieldMask {
                         marshaler.type_name
                     )));
                 }
-                budget.charge(budget::STR_OVERHEAD + part.len() + budget::LIST_SLOT_SIZE)?;
+                budget
+                    .charge(budget::STR_OVERHEAD + part.chars().count() + budget::LIST_SLOT_SIZE)?;
                 paths.append(buffa_wkt::camel_to_snake(part))?;
             }
             Ok(())
@@ -395,7 +396,7 @@ impl WktStruct {
             let value_msg =
                 value_marshaler.new_empty_message(py, self.value.get_python_type(py))?;
             read_message(value_marshaler, &value_msg, src, opts, depth + 1, budget)?;
-            budget.charge(budget::DICT_ENTRY_SIZE + budget::STR_OVERHEAD + key.len())?;
+            budget.charge(budget::DICT_ENTRY_SIZE + budget::STR_OVERHEAD + key.chars().count())?;
             dict.set_item(key, value_msg)?;
             Ok(())
         })?;
