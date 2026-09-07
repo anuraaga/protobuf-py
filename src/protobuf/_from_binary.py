@@ -316,7 +316,6 @@ def read_enum(
     if not desc_enum._values_by_number.get(value):
         if not desc_enum.open:
             return value
-        # Unknown open enum values allocate a new int-subclass instance.
         if budget is not None:
             budget.charge(INT_SIZE + GC_HEAD_SIZE)
     return desc_enum.type(value)
@@ -454,9 +453,7 @@ def merge_from_binary(
         data: Serialized binary protobuf data. Must not be mutated during parsing.
         ignore_unknown_fields: If `True`, unknown fields in the binary data are silently discarded.
         allocation_limit: If set, the approximate number of bytes of Python
-            objects the parse may allocate before raising a ValueError. Guards
-            against malicious payloads that expand into unexpectedly large
-            messages.
+            objects the parse may allocate before raising a ValueError.
     """
     message._merge_from_binary(
         data, ignore_unknown_fields, allocation_limit=allocation_limit

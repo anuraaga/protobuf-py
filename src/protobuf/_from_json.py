@@ -118,9 +118,7 @@ def merge_from_json(
         registry: Required to read google.protobuf.Any and extensions from
             JSON format.
         allocation_limit: If set, the approximate number of bytes of Python
-            objects the parse may allocate before raising a ValueError. Guards
-            against malicious payloads that expand into unexpectedly large
-            messages.
+            objects the parse may allocate before raising a ValueError.
 
     Raises:
         json.JSONDecodeError: If json_source is not valid JSON.
@@ -463,8 +461,7 @@ def _read_enum(
             return desc.type(value.number)
         if ignore_unknown_fields:
             return None
-        # Succeeds for open enum (allocating a new int-subclass instance),
-        # raises an error for closed.
+        # Succeeds for open enum, raises an error for closed
         if budget is not None:
             budget.charge(INT_SIZE + GC_HEAD_SIZE)
         return desc.type(json)

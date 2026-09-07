@@ -27,8 +27,7 @@ if TYPE_CHECKING:
 # Approximate sizes of CPython heap allocations, measured with `sys.getsizeof`
 # on 64-bit CPython 3.14. The budget guards against unbounded allocation from
 # malicious payloads rather than providing exact accounting, so small
-# inaccuracies across versions and builds are fine. These values mirror the
-# constants in the native extension's budget.rs.
+# inaccuracies across versions and builds are fine.
 
 GC_HEAD_SIZE = 16
 """GC header allocated in front of every GC-tracked object."""
@@ -41,9 +40,9 @@ STR_OVERHEAD = 41
 BYTES_OVERHEAD = 33
 """Header of a bytes object."""
 EMPTY_LIST_SIZE = 56
-"""An empty list, as created for repeated field defaults."""
+"""An empty list."""
 EMPTY_DICT_SIZE = 64
-"""An empty dict, as created for map field defaults."""
+"""An empty dict."""
 LIST_SLOT_SIZE = 8
 """One appended list element: an 8-byte pointer slot."""
 DICT_ENTRY_SIZE = 40
@@ -71,9 +70,7 @@ def _base_alloc_size(message_type: type[Message]) -> int:
 class Budget:
     """Tracks approximate allocations while parsing a message.
 
-    Raises an error once the configured limit is exceeded. Charges are made
-    before the corresponding allocation where practical so the limit bounds
-    the actual peak.
+    Raises an error once the configured limit is exceeded.
     """
 
     __slots__ = ("current", "max")

@@ -113,11 +113,11 @@ impl NativeMessage {
         let constants = Constants::get(py)?;
         let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
         let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get();
-        let mut alloc_budget = Budget::new(allocation_limit);
-        alloc_budget.charge(marshaler.base_alloc_size)?;
+        let mut budget = Budget::new(allocation_limit);
+        budget.charge(marshaler.alloc_size)?;
         let message = marshaler.new_empty_message(py, cls)?;
         let slf = message.cast::<NativeMessage>()?;
-        marshaler.merge_from_binary(py, slf, data, ignore_unknown_fields, &mut alloc_budget)?;
+        marshaler.merge_from_binary(py, slf, data, ignore_unknown_fields, &mut budget)?;
         Ok(message)
     }
 
@@ -162,8 +162,8 @@ impl NativeMessage {
         let constants = Constants::get(py)?;
         let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
         let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get().clone();
-        let mut alloc_budget = Budget::new(allocation_limit);
-        alloc_budget.charge(marshaler.base_alloc_size)?;
+        let mut budget = Budget::new(allocation_limit);
+        budget.charge(marshaler.alloc_size)?;
         let message = marshaler.new_empty_message(py, cls)?;
         parse_json_into(
             py,
@@ -172,7 +172,7 @@ impl NativeMessage {
             json,
             ignore_unknown_fields,
             registry,
-            &mut alloc_budget,
+            &mut budget,
         )?;
         Ok(message)
     }
@@ -187,8 +187,8 @@ impl NativeMessage {
         allocation_limit: Option<usize>,
     ) -> PyResult<()> {
         let marshaler = NativeMessage::get_marshaler(slf)?;
-        let mut alloc_budget = Budget::new(allocation_limit);
-        alloc_budget.charge(marshaler.base_alloc_size)?;
+        let mut budget = Budget::new(allocation_limit);
+        budget.charge(marshaler.alloc_size)?;
         parse_json_into(
             py,
             &marshaler,
@@ -196,7 +196,7 @@ impl NativeMessage {
             json,
             ignore_unknown_fields,
             registry,
-            &mut alloc_budget,
+            &mut budget,
         )
     }
 
@@ -234,14 +234,14 @@ impl NativeMessage {
         let constants = Constants::get(py)?;
         let marshaler_any = cls.getattr(&constants.ext_marshaler)?;
         let marshaler = marshaler_any.cast::<MessageMarshaler>()?.get().clone();
-        let mut alloc_budget = Budget::new(allocation_limit);
-        alloc_budget.charge(marshaler.base_alloc_size)?;
+        let mut budget = Budget::new(allocation_limit);
+        budget.charge(marshaler.alloc_size)?;
         let message = marshaler.new_empty_message(py, cls)?;
         let opts = FromJsonOpts {
             ignore_unknown_fields,
             registry,
         };
-        read_message_from_tree(py, &marshaler, &message, data, &opts, &mut alloc_budget)?;
+        read_message_from_tree(py, &marshaler, &message, data, &opts, &mut budget)?;
         Ok(message)
     }
 
@@ -296,9 +296,9 @@ impl NativeMessage {
     ) -> PyResult<()> {
         let data = data.into_inner();
         let marshaler = NativeMessage::get_marshaler(slf)?;
-        let mut alloc_budget = Budget::new(allocation_limit);
-        alloc_budget.charge(marshaler.base_alloc_size)?;
-        marshaler.merge_from_binary(py, slf, data, ignore_unknown_fields, &mut alloc_budget)
+        let mut budget = Budget::new(allocation_limit);
+        budget.charge(marshaler.alloc_size)?;
+        marshaler.merge_from_binary(py, slf, data, ignore_unknown_fields, &mut budget)
     }
 
     fn __deepcopy__<'py>(
@@ -541,7 +541,7 @@ fn parse_json_into<'py>(
     json: &Bound<'py, PyAny>,
     ignore_unknown_fields: bool,
     registry: Option<Py<PyAny>>,
-    alloc_budget: &mut Budget,
+    budget: &mut Budget,
 ) -> PyResult<()> {
     let opts = FromJsonOpts {
         ignore_unknown_fields,
@@ -554,20 +554,13 @@ fn parse_json_into<'py>(
             message,
             text.to_str()?.as_bytes(),
             &opts,
-            alloc_budget,
+            budget,
         )
     } else if let Ok(bytes) = json.cast::<PyBytes>() {
-        merge_from_json(
-            py,
-            marshaler,
-            message,
-            bytes.as_bytes(),
-            &opts,
-            alloc_budget,
-        )
+        merge_from_json(py, marshaler, message, bytes.as_bytes(), &opts, budget)
     } else if let Ok(bytearray) = json.cast::<PyByteArray>() {
         let owned = bytearray.to_vec();
-        merge_from_json(py, marshaler, message, &owned, &opts, alloc_budget)
+        merge_from_json(py, marshaler, message, &owned, &opts, budget)
     } else {
         Err(PyTypeError::new_err(format!(
             "json must be str, bytes, or bytearray, got {}",

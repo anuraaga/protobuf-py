@@ -251,7 +251,7 @@ impl FieldParser {
         buffer: &mut Bytes,
         opts: FromBinaryOpts,
         depth: usize,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         match &self.type_ {
             ParserFieldType::Singular {
@@ -267,7 +267,7 @@ impl FieldParser {
                 depth,
                 oneof_attr.as_ref(),
                 *requires_presence,
-                alloc_budget,
+                budget,
             )?,
             ParserFieldType::List {
                 unpacked_wire_type,
@@ -282,7 +282,7 @@ impl FieldParser {
                 depth,
                 *unpacked_wire_type,
                 *packable,
-                alloc_budget,
+                budget,
             )?,
             ParserFieldType::Map {
                 key_type,
@@ -300,7 +300,7 @@ impl FieldParser {
                 value_parser,
                 key_default_value,
                 value_default_value,
-                alloc_budget,
+                budget,
             )?,
         }
 
@@ -318,7 +318,7 @@ impl FieldParser {
         depth: usize,
         oneof_attr: Option<&AttributeAccess>,
         requires_presence: bool,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         let value = self.read_single_value(
             py,
@@ -328,12 +328,12 @@ impl FieldParser {
             buffer,
             opts,
             depth,
-            alloc_budget,
+            budget,
         )?;
         match value {
             SingleValue::Parsed(value) => {
                 if oneof_attr.is_some() {
-                    alloc_budget.charge(budget::ONEOF_SIZE)?;
+                    budget.charge(budget::ONEOF_SIZE)?;
                 }
                 self.assign_singular(py, message, &value, oneof_attr, requires_presence)?;
             }
@@ -342,7 +342,7 @@ impl FieldParser {
                     let mut field = BytesMut::new();
                     encode_varint(tag as u64, &mut field);
                     encode_varint(number as u64, &mut field);
-                    write_unknown_field(py, message, tag >> 3, &field, alloc_budget)?;
+                    write_unknown_field(py, message, tag >> 3, &field, budget)?;
                 }
             }
         }
@@ -382,7 +382,7 @@ impl FieldParser {
         depth: usize,
         unpacked_wire_type: WireType,
         packable: bool,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         let python_list = self.attr.get(py, message)?;
         let list = python_list.cast::<PyList>()?;
@@ -399,11 +399,11 @@ impl FieldParser {
                     &mut list_buffer,
                     opts,
                     depth,
-                    alloc_budget,
+                    budget,
                 )?;
                 match value {
                     SingleValue::Parsed(value) => {
-                        alloc_budget.charge(budget::LIST_SLOT_SIZE)?;
+                        budget.charge(budget::LIST_SLOT_SIZE)?;
                         list.append(value)?;
                     }
                     SingleValue::UnknownEnumValue(number) => {
@@ -413,25 +413,17 @@ impl FieldParser {
                             let tag = (tag & !0b111) | (unpacked_wire_type as u32);
                             encode_varint(tag as u64, &mut field);
                             encode_varint(number as u64, &mut field);
-                            write_unknown_field(py, message, tag >> 3, &field, alloc_budget)?;
+                            write_unknown_field(py, message, tag >> 3, &field, budget)?;
                         }
                     }
                 }
             }
         } else {
-            let value = self.read_single_value(
-                py,
-                tag,
-                wire_type,
-                None,
-                buffer,
-                opts,
-                depth,
-                alloc_budget,
-            )?;
+            let value =
+                self.read_single_value(py, tag, wire_type, None, buffer, opts, depth, budget)?;
             match value {
                 SingleValue::Parsed(value) => {
-                    alloc_budget.charge(budget::LIST_SLOT_SIZE)?;
+                    budget.charge(budget::LIST_SLOT_SIZE)?;
                     list.append(value)?;
                 }
                 SingleValue::UnknownEnumValue(number) => {
@@ -439,7 +431,7 @@ impl FieldParser {
                         let mut field = BytesMut::new();
                         encode_varint(tag as u64, &mut field);
                         encode_varint(number as u64, &mut field);
-                        write_unknown_field(py, message, tag >> 3, &field, alloc_budget)?;
+                        write_unknown_field(py, message, tag >> 3, &field, budget)?;
                     }
                 }
             }
@@ -459,7 +451,7 @@ impl FieldParser {
         value_parser: &FieldParser,
         key_default_value: &Py<PyAny>,
         value_default_value: &Py<PyAny>,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         let len = decode_varint(buffer).map_err(map_varint_err)? as usize;
         check_buffer_remaining(buffer, len)?;
@@ -481,10 +473,10 @@ impl FieldParser {
                             entry_tag,
                             &entry_checkpoint,
                             opts,
-                            alloc_budget,
+                            budget,
                         );
                     }
-                    key = Some(read_scalar(py, key_type, &mut entry_buffer, alloc_budget)?);
+                    key = Some(read_scalar(py, key_type, &mut entry_buffer, budget)?);
                 }
                 2 => {
                     if value_parser.wire_type != wire_type {
@@ -494,7 +486,7 @@ impl FieldParser {
                             entry_tag,
                             &entry_checkpoint,
                             opts,
-                            alloc_budget,
+                            budget,
                         );
                     }
                     value = Some(value_parser.read_single_value(
@@ -505,7 +497,7 @@ impl FieldParser {
                         &mut entry_buffer,
                         opts,
                         depth,
-                        alloc_budget,
+                        budget,
                     )?);
                 }
                 _ => {
@@ -519,7 +511,7 @@ impl FieldParser {
             value
         } else if let FieldParserValue::Message { message, .. } = &value_parser.value {
             // For message values, the default is a new instance of the message, not None.
-            alloc_budget.charge(message.get_marshaler(py)?.base_alloc_size)?;
+            budget.charge(message.get_marshaler(py)?.alloc_size)?;
             SingleValue::Parsed(message.get_python_type(py).call0()?)
         } else {
             SingleValue::Parsed(value_default_value.bind(py).clone())
@@ -532,10 +524,10 @@ impl FieldParser {
                 entry_tag,
                 &entry_checkpoint,
                 opts,
-                alloc_budget,
+                budget,
             );
         };
-        alloc_budget.charge(budget::DICT_ENTRY_SIZE)?;
+        budget.charge(budget::DICT_ENTRY_SIZE)?;
         self.assign_map_entry(py, message, key, value)?;
         Ok(())
     }
@@ -560,14 +552,14 @@ impl FieldParser {
         tag: u32,
         entry_bytes: &[u8],
         opts: FromBinaryOpts,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         if !opts.ignore_unknown_fields {
             let mut field_bytes = BytesMut::new();
             encode_varint(tag as u64, &mut field_bytes);
             encode_varint(entry_bytes.len() as u64, &mut field_bytes);
             field_bytes.extend_from_slice(entry_bytes);
-            write_unknown_field(py, message, tag >> 3, &field_bytes, alloc_budget)?;
+            write_unknown_field(py, message, tag >> 3, &field_bytes, budget)?;
         }
         Ok(())
     }
@@ -582,12 +574,10 @@ impl FieldParser {
         buffer: &mut Bytes,
         opts: FromBinaryOpts,
         depth: usize,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<SingleValue<'py>> {
         let value = match &self.value {
-            FieldParserValue::Scalar(scalar_type) => {
-                read_scalar(py, *scalar_type, buffer, alloc_budget)?
-            }
+            FieldParserValue::Scalar(scalar_type) => read_scalar(py, *scalar_type, buffer, budget)?,
             FieldParserValue::Message {
                 message: message_desc,
                 ..
@@ -615,7 +605,7 @@ impl FieldParser {
                 {
                     existing.cast_into::<NativeMessage>()?
                 } else {
-                    alloc_budget.charge(marshaler.base_alloc_size)?;
+                    budget.charge(marshaler.alloc_size)?;
                     marshaler.new_empty_message(py, parser.inner.python_type.bind(py))?
                 };
                 parser.merge_from_binary(
@@ -624,7 +614,7 @@ impl FieldParser {
                     &mut message_buffer,
                     opts,
                     depth + 1,
-                    alloc_budget,
+                    budget,
                 )?;
                 message_instance.into_any()
             }
@@ -634,9 +624,7 @@ impl FieldParser {
                 if let Some(value) = value {
                     value.bind(py).clone()
                 } else if enum_.open {
-                    // Unknown open enum values allocate a new int-subclass
-                    // instance of the enum type.
-                    alloc_budget.charge(budget::INT_SIZE + budget::GC_HEAD_SIZE)?;
+                    budget.charge(budget::INT_SIZE + budget::GC_HEAD_SIZE)?;
                     enum_.py_type.bind(py).call1((number,))?
                 } else {
                     return Ok(SingleValue::UnknownEnumValue(number));
@@ -734,7 +722,7 @@ impl MessageParser {
         buffer: &mut Bytes,
         opts: FromBinaryOpts,
         depth: usize,
-        alloc_budget: &mut Budget,
+        budget: &mut Budget,
     ) -> PyResult<()> {
         check_parse_recursion_depth(depth)?;
         while buffer.has_remaining() {
@@ -748,16 +736,7 @@ impl MessageParser {
             if let Some(field) = self.inner.fields.get(field_number)
                 && field.wire_type_matches(wire_type)
             {
-                field.read_field(
-                    py,
-                    message,
-                    tag,
-                    wire_type,
-                    buffer,
-                    opts,
-                    depth,
-                    alloc_budget,
-                )?;
+                field.read_field(py, message, tag, wire_type, buffer, opts, depth, budget)?;
             } else {
                 skip_field_with_wire_type(field_number, wire_type, buffer, depth + 1)?;
                 if !opts.ignore_unknown_fields {
@@ -767,7 +746,7 @@ impl MessageParser {
                         message,
                         field_number,
                         &checkpoint[..field_len],
-                        alloc_budget,
+                        budget,
                     )?;
                 }
             }
@@ -776,16 +755,15 @@ impl MessageParser {
     }
 }
 
-/// Reads a scalar value from the wire buffer, charging the allocation budget
-/// for the resulting Python object.
+/// Reads a scalar value from the wire buffer.
 fn read_scalar<'py>(
     py: Python<'py>,
     s: ScalarType,
     buffer: &mut Bytes,
-    alloc_budget: &mut Budget,
+    budget: &mut Budget,
 ) -> PyResult<Bound<'py, PyAny>> {
     match s {
-        ScalarType::Double | ScalarType::Float => alloc_budget.charge(budget::FLOAT_SIZE)?,
+        ScalarType::Double | ScalarType::Float => budget.charge(budget::FLOAT_SIZE)?,
         // Small ints are interned and larger ones vary a little in size, but
         // a flat charge is close enough.
         ScalarType::Int64
@@ -797,7 +775,7 @@ fn read_scalar<'py>(
         | ScalarType::Sfixed32
         | ScalarType::Sfixed64
         | ScalarType::Sint32
-        | ScalarType::Sint64 => alloc_budget.charge(budget::INT_SIZE)?,
+        | ScalarType::Sint64 => budget.charge(budget::INT_SIZE)?,
         // Bools are shared singletons; strings and bytes are charged below
         // once the length is known.
         ScalarType::Bool | ScalarType::String | ScalarType::Bytes => {}
@@ -835,14 +813,14 @@ fn read_scalar<'py>(
         ScalarType::String => {
             let len = decode_varint(buffer).map_err(map_varint_err)? as usize;
             check_buffer_remaining(buffer, len)?;
-            alloc_budget.charge(budget::STR_OVERHEAD + len)?;
+            budget.charge(budget::STR_OVERHEAD + len)?;
             let bytes = buffer.split_to(len);
             PyString::from_bytes(py, &bytes)?.into_any()
         }
         ScalarType::Bytes => {
             let len = decode_varint(buffer).map_err(map_varint_err)? as usize;
             check_buffer_remaining(buffer, len)?;
-            alloc_budget.charge(budget::BYTES_OVERHEAD + len)?;
+            budget.charge(budget::BYTES_OVERHEAD + len)?;
             let bytes = buffer.split_to(len);
             PyBytes::new(py, &bytes).into_any()
         }
@@ -966,11 +944,11 @@ fn write_unknown_field(
     message: &Bound<'_, NativeMessage>,
     field_number: u32,
     field_bytes: &[u8],
-    alloc_budget: &mut Budget,
+    budget: &mut Budget,
 ) -> PyResult<()> {
     // The bytes copy plus the list slot holding it. The dict/list created for
     // the first unknown field of a number are not charged for simplicity.
-    alloc_budget.charge(budget::BYTES_OVERHEAD + field_bytes.len() + budget::LIST_SLOT_SIZE)?;
+    budget.charge(budget::BYTES_OVERHEAD + field_bytes.len() + budget::LIST_SLOT_SIZE)?;
     let unknown_fields_unbound = message.get().get_or_init_unknown_fields(py);
     let unknown_fields = unknown_fields_unbound.bind(py);
     let field_list = if let Ok(list) = unknown_fields.get_item(field_number) {

@@ -78,7 +78,7 @@ pub(crate) struct MessageMarshalerInner {
     /// Approximate heap size of a freshly-initialized instance of this
     /// message type: the fixed instance size (all fields are slots) plus the
     /// empty containers created for repeated/map field defaults.
-    pub(crate) base_alloc_size: usize,
+    pub(crate) alloc_size: usize,
 
     /// The Python type of the message.
     pub(crate) python_type: Py<PyType>,
@@ -220,7 +220,7 @@ impl MessageMarshaler {
                 members_by_name: members_by_name.unbind(),
                 members,
                 max_field_number,
-                base_alloc_size,
+                alloc_size: base_alloc_size,
                 python_type: python_type.clone().unbind(),
                 type_name,
                 wkt,
