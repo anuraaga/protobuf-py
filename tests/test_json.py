@@ -25,7 +25,7 @@ from protobuf import (
     message_from_json_value,
     message_to_json_value,
 )
-from protobuf.wkt import Struct
+from protobuf.wkt import FileDescriptorSet, Struct
 
 from .gen.enums_pb import ClosedColor, Color, EnumMessage
 from .gen.json_enum_names_pb import JsonEnumNames, Season
@@ -869,3 +869,12 @@ class TestAllocationLimit:
         data = Lists(string_list=["a" * 100] * 100).to_json()
         msg = Lists.from_json(data)
         assert len(msg.string_list) == 100
+
+    def test_descriptor_set_amplification_rejected(self) -> None:
+        # Each empty "{}" in "file" for FileDescriptorSet
+        # parses to a full FileDescriptorProto (~700 bytes) from ~3 JSON bytes.
+        rpc_read_limit = 4 * 1024 * 1024
+        data = '{"file":[' + ",".join(["{}"] * 1_200_000) + "]}"
+        assert len(data) < rpc_read_limit
+        with pytest.raises(ValueError, match="allocation budget exceeded"):
+            FileDescriptorSet.from_json(data, allocation_limit=64 * 1024 * 1024)

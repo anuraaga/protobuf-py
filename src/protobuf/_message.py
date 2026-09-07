@@ -600,8 +600,7 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
                 from JSON format.
             allocation_limit:
                 If set, the approximate number of bytes of Python objects the
-                parse may allocate before raising a ValueError. Guards against
-                malicious payloads that expand into unexpectedly large messages.
+                parse may allocate before raising a ValueError.
 
         Raises:
             json.JSONDecodeError: If json_source is not valid JSON.
@@ -635,8 +634,7 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
             ignore_unknown_fields: If `True`, unknown fields in the binary data are silently discarded.
             allocation_limit:
                 If set, the approximate number of bytes of Python objects the
-                parse may allocate before raising a ValueError. Guards against
-                malicious payloads that expand into unexpectedly large messages.
+                parse may allocate before raising a ValueError.
         """
         message = cls()
         message._merge_from_binary(
