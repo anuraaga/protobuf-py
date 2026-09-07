@@ -268,7 +268,7 @@ def _read_message_extension(
         del msg[ext.type]
     else:
         budget = opts.budget
-        budget.charge_message(field_value.message.type)
+        budget.charge_message(field_value.message)
         value = field_value.message.type()
         _read_message(value, json, opts)
         msg[ext.type] = value
@@ -382,7 +382,7 @@ def _read_message_field(
     if msg._contains_member(field):
         value = msg._get_member(field)
     else:
-        budget.charge_message(field_value.message.type)
+        budget.charge_message(field_value.message)
         value = field_value.message.type()
     _read_message(value, json, opts)
     if field_value.oneof is not None:
@@ -424,7 +424,7 @@ def _read_container_item(
         return _read_scalar(field, element, json, opts.budget)
     if isinstance(element, DescMessage) and not _is_resetting_null(element, json):
         budget = opts.budget
-        budget.charge_message(element.type)
+        budget.charge_message(element)
         msg = element.type()
         _read_message(msg, json, opts)
         return msg
@@ -669,7 +669,7 @@ def _struct_from_json(
     assert isinstance(value_wkt, WktValue)  # noqa: S101
     budget = opts.budget
     for k, v in json.items():
-        budget.charge_message(value_desc.type)
+        budget.charge_message(value_desc)
         val = cast("Value", value_desc.type())
         _value_from_json(val, v, opts, value_wkt)
         budget.charge(DICT_ENTRY_SIZE + STR_OVERHEAD + len(k))
@@ -691,7 +691,7 @@ def _list_value_from_json(
     assert isinstance(element_wkt, WktValue)  # noqa: S101
     budget = opts.budget
     for e in json:
-        budget.charge_message(element_desc.type)
+        budget.charge_message(element_desc)
         val = cast("Value", element_desc.type())
         _value_from_json(val, e, opts, element_wkt)
         budget.charge(LIST_SLOT_SIZE)
@@ -726,7 +726,7 @@ def _value_from_json_inner(
             budget.charge(STR_OVERHEAD + len(json))
             msg.kind = Oneof("string_value", json)
         case list():
-            budget.charge_message(wkt.list_value.message.type)
+            budget.charge_message(wkt.list_value.message)
             lv_desc = wkt.list_value.message
             lv_wkt = match_wkt(lv_desc)
             assert isinstance(lv_wkt, WktListValue)  # noqa: S101
@@ -734,7 +734,7 @@ def _value_from_json_inner(
             _list_value_from_json(lv, json, opts, lv_wkt.values)
             msg.kind = Oneof("list_value", lv)
         case dict():
-            budget.charge_message(wkt.struct_value.message.type)
+            budget.charge_message(wkt.struct_value.message)
             struct_desc = wkt.struct_value.message
             struct_wkt = match_wkt(struct_desc)
             assert isinstance(struct_wkt, WktStruct)  # noqa: S101

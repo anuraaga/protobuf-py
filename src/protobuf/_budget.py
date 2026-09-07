@@ -15,21 +15,22 @@
 from __future__ import annotations
 
 import sys
-from functools import cache
 from typing import TYPE_CHECKING, cast
 
-from ._descriptors import ScalarType
+from ._descriptors import DescMessage, ScalarType
 
 if TYPE_CHECKING:
     from collections.abc import Sized
-
-    from ._message import Message
 
 # Approximate sizes of CPython heap allocations, measured with `sys.getsizeof`
 # on 64-bit CPython 3.14. The budget guards against unbounded allocation from
 # malicious payloads rather than providing exact accounting, so small
 # inaccuracies across versions and builds are fine.
 
+OBJECT_HEADER_SIZE = 16
+"""Refcount and type pointer at the start of every object."""
+SLOT_SIZE = 8
+"""One `__slots__` entry: a pointer."""
 GC_HEAD_SIZE = 16
 """GC header allocated in front of every GC-tracked object."""
 FLOAT_SIZE = 24
@@ -52,15 +53,28 @@ ONEOF_SIZE = 32
 """A Oneof wrapper object: object header plus two references."""
 
 
-@cache
-def _base_alloc_size(message_type: type[Message]) -> int:
+def _instance_size(message_type: type) -> int:
+    """The fixed allocation size of an instance of a slots-only class."""
+    basicsize = getattr(message_type, "__basicsize__", None)
+    if basicsize is not None:
+        return basicsize
+    # PyPy doesn't provide basicsize so we approximate it based on slot count.
+    slots = 0
+    for cls in message_type.__mro__:
+        names = cls.__dict__.get("__slots__", ())
+        names = (names,) if isinstance(names, str) else names
+        slots += sum(1 for name in names if name not in ("__dict__", "__weakref__"))
+    return OBJECT_HEADER_SIZE + SLOT_SIZE * slots
+
+
+def _message_alloc_size(desc: DescMessage) -> int:
     """Approximate heap size of a freshly-initialized message instance.
 
     The fixed instance size (all fields are slots) plus the empty containers
     created for repeated/map field defaults.
     """
-    size = message_type.__basicsize__ + GC_HEAD_SIZE
-    for _, default in message_type._desc._defaults:
+    size = _instance_size(desc.type) + GC_HEAD_SIZE
+    for _, default in desc._defaults:
         if isinstance(default, list):
             size += EMPTY_LIST_SIZE
         elif isinstance(default, dict):
@@ -100,6 +114,10 @@ class Budget:
         else:
             self.charge(INT_SIZE)
 
-    def charge_message(self, message_type: type[Message]) -> None:
+    def charge_message(self, desc: DescMessage) -> None:
         """Charges the base size of a new instance of the message type."""
-        self.charge(_base_alloc_size(message_type))
+        size = desc._alloc_size
+        if size is None:
+            size = _message_alloc_size(desc)
+            object.__setattr__(desc, "_alloc_size", size)
+        self.charge(size)

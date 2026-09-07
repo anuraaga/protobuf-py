@@ -197,7 +197,7 @@ def read_message(
             ):
                 existing: Message | None = message._get_member(desc_field)
                 if existing is None:
-                    budget.charge_message(desc_nested_message.type)
+                    budget.charge_message(desc_nested_message)
                     if field_value.oneof is not None:
                         budget.charge(ONEOF_SIZE)
                     existing = desc_nested_message.type()
@@ -280,7 +280,7 @@ def read_list(
         case ScalarType():
             value = read_scalar(element_type, reader, budget)
         case DescMessage():
-            budget.charge_message(element_type.type)
+            budget.charge_message(element_type)
             if field_value.delimited_encoding:
                 value = read_message(
                     element_type.type(),
@@ -400,7 +400,7 @@ def read_map_entry(
                         )
                         return None
                 case DescMessage():
-                    budget.charge_message(field_value.value.type)
+                    budget.charge_message(field_value.value)
                     value = field_value.value.type()
                     read_message(value, reader, opts, depth + 1, length=reader.varint())
                 case _:
@@ -417,7 +417,7 @@ def read_map_entry(
             case DescEnum() as desc_enum:
                 value = desc_enum.type(desc_enum.values[0].number)
             case DescMessage():
-                budget.charge_message(field_value.value.type)
+                budget.charge_message(field_value.value)
                 value = field_value.value.type()
             case _:
                 assert_never(field_value.value)

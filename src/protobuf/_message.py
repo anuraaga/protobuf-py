@@ -700,7 +700,7 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         # The root is charged here rather than in from_binary so both entry
         # points share one budget semantic; a merge into an existing message
         # overcharges by one base size.
-        budget.charge_message(type(self))
+        budget.charge_message(self._desc)
         opts = FromBinaryOptions(
             ignore_unknown_fields=ignore_unknown_fields, budget=budget
         )
@@ -723,7 +723,7 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         json_value = parse_json(json)
         budget = Budget(allocation_limit)
         # See _merge_from_binary for why the root is charged here.
-        budget.charge_message(type(self))
+        budget.charge_message(self._desc)
         opts = FromJsonOptions(
             ignore_unknown_fields=ignore_unknown_fields,
             registry=registry,
@@ -773,7 +773,7 @@ class Message(Generic[FieldNamesT], metaclass=MessageMeta):  # noqa: PLW1641
         from ._from_json import FromJsonOptions, _read_message  # noqa: PLC0415
 
         budget = Budget(allocation_limit)
-        budget.charge_message(cls)
+        budget.charge_message(cls._desc)
         message = cls()
         _read_message(
             message,

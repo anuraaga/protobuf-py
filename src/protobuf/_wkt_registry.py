@@ -251,7 +251,7 @@ class WktAny:
         if not desc:
             err = f"cannot decode {Any._desc.type_name} from JSON: {type_url} is not in the type registry"
             raise ValueError(err)
-        opts.budget.charge_message(desc.type)
+        opts.budget.charge_message(desc)
         message = desc.type()
         if _has_custom_json(desc) and "value" in json:
             _read_message(message, json["value"], opts)
