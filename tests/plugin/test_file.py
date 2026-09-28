@@ -21,7 +21,7 @@ import pytest
 from protobuf import ScalarType
 from protobuf.plugin import File, Ident, Module
 from protobuf.plugin._file import _File, write as gen_write
-from protobuf.wkt import any_pb, timestamp_pb
+from protobuf.wkt.google.protobuf import any_pb, timestamp_pb
 
 if TYPE_CHECKING:
     from collections.abc import Callable

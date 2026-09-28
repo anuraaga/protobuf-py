@@ -46,7 +46,7 @@ if TYPE_CHECKING:
     from ._to_json import ToJsonOptions
     from ._typing import JsonValue
     from .wkt import Any, Duration, FieldMask, ListValue, Struct, Timestamp, Value
-    from .wkt._gen.any_pb import Any as GenAny
+    from .wkt.google.protobuf.any_pb import Any as GenAny
 
 
 _TS_MIN = datetime(1, 1, 1, tzinfo=timezone.utc)

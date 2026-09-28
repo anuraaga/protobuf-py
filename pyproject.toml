@@ -294,7 +294,7 @@ sequence = ["generate-wkt", "generate-bootstrap"]
 [tool.poe.tasks.generate-wkt]
 help = "Generate well-known types"
 sequence = [
-  { cmd = "generate_wkt src/protobuf/wkt/_gen" },
+  { cmd = "generate_wkt src/protobuf/wkt/google/protobuf" },
   "format-python",
 ]
 

@@ -34,7 +34,7 @@ _INDENT = " " * 4
 _TYPING = Module("typing")
 _TYPE_CHECKING = _TYPING.ident("TYPE_CHECKING")
 
-_WKT_MODULE = Module("protobuf.wkt")
+_WKT_MODULE = Module("protobuf.wkt.google.protobuf")
 _WKT_PROTO_PATHS: frozenset[str] = frozenset(
     {
         "google/protobuf/compiler/plugin.proto",

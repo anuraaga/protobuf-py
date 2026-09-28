@@ -26,7 +26,8 @@ import pytest
 from protoc import get_protoc_path
 
 from protobuf.plugin._run import run
-from protobuf.wkt import CodeGeneratorResponse, FileDescriptorSet
+from protobuf.wkt import FileDescriptorSet
+from protobuf.wkt.google.protobuf.compiler.plugin_pb import CodeGeneratorResponse
 
 if TYPE_CHECKING:
     from collections.abc import Callable
