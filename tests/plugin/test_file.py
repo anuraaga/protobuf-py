@@ -663,7 +663,7 @@ class TestDescriptorImports:
 
             from protobuf import Enum, Message
             from protobuf._codegen import file_desc
-            from protobuf.wkt import any_pb, timestamp_pb
+            from protobuf.wkt.google.protobuf import any_pb, timestamp_pb
 
             from . import b_pb
             from .pkg import b_pb as b_pb_
@@ -714,7 +714,8 @@ class TestDescriptorImports:
             from __future__ import annotations
 
             from protobuf import Message
-            from protobuf.wkt import Any, Timestamp
+            from protobuf.wkt.google.protobuf.any_pb import Any
+            from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
             class Bar(Message):
@@ -788,7 +789,8 @@ class TestDescriptorImports:
             from protobuf import Message
 
             if TYPE_CHECKING:
-                from protobuf.wkt import Any, Timestamp
+                from protobuf.wkt.google.protobuf.any_pb import Any
+                from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
             class Bar(Message):
