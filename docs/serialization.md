@@ -65,7 +65,9 @@ memory usage. You may need to experiment with values to see the effective memory
 overcharging.
 
 ```python
-user = User.from_binary(data, allocation_limit=8 * 1024 * 1024) # Roughly cap memory usage of parsed message to 8MB
+user = User.from_binary(
+    data, allocation_limit=8 * 1024 * 1024
+)  # Roughly cap memory usage of parsed message to 8MB
 ```
 
 ## JSON
