@@ -24,11 +24,12 @@ from typing import Final, Literal, NoReturn, TYPE_CHECKING, TypeAlias
 
 from protobuf import Enum, Extension, Message as Message_
 from protobuf._codegen import file_desc as file_desc_
-from protobuf.wkt import MessageOptions, descriptor_pb
+from protobuf.wkt.google.protobuf import descriptor_pb
+from protobuf.wkt.google.protobuf.descriptor_pb import MessageOptions
 
 if TYPE_CHECKING:
     from protobuf import DescFile, Oneof
-    from protobuf.wkt import FileOptions
+    from protobuf.wkt.google.protobuf.descriptor_pb import FileOptions
 
 
 _MyMessageFields: TypeAlias = NoReturn

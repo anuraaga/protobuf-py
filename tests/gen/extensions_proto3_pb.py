@@ -24,7 +24,8 @@ from typing import Final, Literal, TYPE_CHECKING, TypeAlias
 
 from protobuf import Extension, Message
 from protobuf._codegen import file_desc
-from protobuf.wkt import FileOptions, descriptor_pb
+from protobuf.wkt.google.protobuf import descriptor_pb
+from protobuf.wkt.google.protobuf.descriptor_pb import FileOptions
 
 if TYPE_CHECKING:
     from protobuf import DescFile
