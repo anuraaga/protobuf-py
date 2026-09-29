@@ -29,6 +29,7 @@ from protobuf.plugin._map_imports import map_import_target
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Iterator
+    from types import ModuleType
 
     from protobuf.plugin._map_imports import MapImports
 
@@ -37,29 +38,26 @@ _INDENT = " " * 4
 _TYPING = Module("typing")
 _TYPE_CHECKING = _TYPING.ident("TYPE_CHECKING")
 
-_WKT_GOOGLE_PROTOBUF = Module("protobuf.wkt.google.protobuf")
-_WKT_GOOGLE_PROTOBUF_COMPILER = Module("protobuf.wkt.google.protobuf.compiler")
-
 
 def _proto_paths(
-    proto_dir: str, parent_module: str
+    proto_dir: str, parent_module: ModuleType
 ) -> dict[str, tuple[Module, Module]]:
     paths: dict[str, tuple[Module, Module]] = {}
-    for mod in pkgutil.iter_modules(protobuf.wkt.google.protobuf.__path__):
+    for mod in pkgutil.iter_modules(parent_module.__path__):
         if not mod.name.endswith("_pb"):
             continue
         paths[f"{proto_dir}/{mod.name[: -len('_pb')]}.proto"] = (
-            Module(parent_module),
-            Module(f"{parent_module}.{mod.name}"),
+            Module(parent_module.__name__),
+            Module(f"{parent_module.__name__}.{mod.name}"),
         )
     return paths
 
 
 def _wkt_proto_paths() -> dict[str, tuple[Module, Module]]:
     return {
-        **_proto_paths("google/protobuf", "protobuf.wkt.google.protobuf"),
+        **_proto_paths("google/protobuf", protobuf.wkt.google.protobuf),
         **_proto_paths(
-            "google/protobuf/compiler", "protobuf.wkt.google.protobuf.compiler"
+            "google/protobuf/compiler", protobuf.wkt.google.protobuf.compiler
         ),
     }
 
