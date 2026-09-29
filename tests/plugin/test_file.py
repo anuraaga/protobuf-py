@@ -21,7 +21,8 @@ import pytest
 from protobuf import ScalarType
 from protobuf.plugin import File, Ident, Module
 from protobuf.plugin._file import _File, write as gen_write
-from protobuf.wkt import any_pb, timestamp_pb
+from protobuf.wkt.google.protobuf import any_pb, timestamp_pb
+from protobuf.wkt.google.protobuf.compiler import plugin_pb
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -663,7 +664,7 @@ class TestDescriptorImports:
 
             from protobuf import Enum, Message
             from protobuf._codegen import file_desc
-            from protobuf.wkt import any_pb, timestamp_pb
+            from protobuf.wkt.google.protobuf import any_pb, timestamp_pb
 
             from . import b_pb
             from .pkg import b_pb as b_pb_
@@ -700,6 +701,7 @@ class TestDescriptorImports:
         protobuf = Module("protobuf")
         timestamp_msg = timestamp_pb.desc().messages[0]
         any_msg = any_pb.desc().messages[0]
+        version_msg = plugin_pb.desc().messages[0]
 
         def write(f: File) -> None:
             with f.scope(
@@ -707,6 +709,7 @@ class TestDescriptorImports:
             ):
                 f.print("ts: ", timestamp_msg)
                 f.print("any: ", any_msg)
+                f.print("version: ", version_msg)
 
         _test_generated_file(
             write,
@@ -714,12 +717,15 @@ class TestDescriptorImports:
             from __future__ import annotations
 
             from protobuf import Message
-            from protobuf.wkt import Any, Timestamp
+            from protobuf.wkt.google.protobuf.any_pb import Any
+            from protobuf.wkt.google.protobuf.compiler.plugin_pb import Version
+            from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
             class Bar(Message):
                 ts: Timestamp
                 any: Any
+                version: Version
             """,
             file=_File(
                 path="test_pb.py",
@@ -788,7 +794,8 @@ class TestDescriptorImports:
             from protobuf import Message
 
             if TYPE_CHECKING:
-                from protobuf.wkt import Any, Timestamp
+                from protobuf.wkt.google.protobuf.any_pb import Any
+                from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
             class Bar(Message):

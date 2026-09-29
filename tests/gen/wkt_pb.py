@@ -24,11 +24,13 @@ from typing import Literal, TYPE_CHECKING, TypeAlias
 
 from protobuf import Message
 from protobuf._codegen import file_desc
-from protobuf.wkt import any_pb, duration_pb, timestamp_pb
+from protobuf.wkt.google.protobuf import any_pb, duration_pb, timestamp_pb
 
 if TYPE_CHECKING:
     from protobuf import DescFile
-    from protobuf.wkt import Any, Duration, Timestamp
+    from protobuf.wkt.google.protobuf.any_pb import Any
+    from protobuf.wkt.google.protobuf.duration_pb import Duration
+    from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
 _WellKnownTypesFields: TypeAlias = Literal["any", "duration", "timestamp"]

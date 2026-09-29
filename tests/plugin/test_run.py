@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from protobuf.plugin._run import run
-from protobuf.wkt import CodeGeneratorResponse
+from protobuf.wkt.google.protobuf.compiler.plugin_pb import CodeGeneratorResponse
 from tests.conftest import Plugin
 
 if TYPE_CHECKING:

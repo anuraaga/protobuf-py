@@ -186,7 +186,7 @@ class TestFileMaps:
             """\
             from __future__ import annotations
 
-            from protobuf.wkt import Timestamp
+            from protobuf.wkt.google.protobuf.timestamp_pb import Timestamp
 
 
             x: Timestamp

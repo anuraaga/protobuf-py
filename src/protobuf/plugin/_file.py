@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+import pkgutil
 import sys
 from collections import defaultdict
 from contextlib import AbstractContextManager, contextmanager
@@ -20,12 +21,15 @@ from typing import TYPE_CHECKING, Any, Final, Protocol
 
 from typing_extensions import assert_never
 
+import protobuf.wkt.google.protobuf
+import protobuf.wkt.google.protobuf.compiler
 from protobuf import DescEnum, DescExtension, DescFile, DescMessage, ScalarType
 from protobuf.plugin._ident import Ident, Module
 from protobuf.plugin._map_imports import map_import_target
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Iterator
+    from types import ModuleType
 
     from protobuf.plugin._map_imports import MapImports
 
@@ -34,28 +38,36 @@ _INDENT = " " * 4
 _TYPING = Module("typing")
 _TYPE_CHECKING = _TYPING.ident("TYPE_CHECKING")
 
-_WKT_MODULE = Module("protobuf.wkt")
-_WKT_PROTO_PATHS: frozenset[str] = frozenset(
-    {
-        "google/protobuf/compiler/plugin.proto",
-        "google/protobuf/any.proto",
-        "google/protobuf/api.proto",
-        "google/protobuf/cpp_features.proto",
-        "google/protobuf/descriptor.proto",
-        "google/protobuf/duration.proto",
-        "google/protobuf/empty.proto",
-        "google/protobuf/field_mask.proto",
-        "google/protobuf/go_features.proto",
-        "google/protobuf/java_features.proto",
-        "google/protobuf/json_enumvalue_options.proto",
-        "google/protobuf/json_options.proto",
-        "google/protobuf/source_context.proto",
-        "google/protobuf/struct.proto",
-        "google/protobuf/timestamp.proto",
-        "google/protobuf/type.proto",
-        "google/protobuf/wrappers.proto",
+
+def _proto_paths(
+    proto_dir: str, parent_module: ModuleType
+) -> dict[str, tuple[Module, Module]]:
+    paths: dict[str, tuple[Module, Module]] = {}
+    for mod in pkgutil.iter_modules(parent_module.__path__):
+        if not mod.name.endswith("_pb"):
+            continue
+        paths[f"{proto_dir}/{mod.name[: -len('_pb')]}.proto"] = (
+            Module(parent_module.__name__),
+            Module(f"{parent_module.__name__}.{mod.name}"),
+        )
+    return paths
+
+
+def _wkt_proto_paths() -> dict[str, tuple[Module, Module]]:
+    return {
+        **_proto_paths("google/protobuf", protobuf.wkt.google.protobuf),
+        **_proto_paths(
+            "google/protobuf/compiler", protobuf.wkt.google.protobuf.compiler
+        ),
     }
-)
+
+
+_WKT_PROTO_PATHS: dict[str, tuple[Module, Module]] = _wkt_proto_paths()
+"""Mapping from .proto path to python modules for WKTs.
+
+The first element of the tuple is the containing module for file imports,
+the second is the module itself for member imports.
+"""
 
 
 class File(Protocol):
@@ -502,18 +514,26 @@ def _desc_ident(
     ident = Ident.for_desc(
         desc, type_only=type_only, escape_module_with_hash=escape_module_with_hash
     )
-    file = desc if isinstance(desc, DescFile) else desc.file
-    if _use_wkt_module(file, file_to_generate):
-        return Ident(ident.name, _WKT_MODULE, type_only=type_only)
+    if mod := _wkt_module(desc, file_to_generate):
+        return Ident(ident.name, mod, type_only=type_only)
     return ident
 
 
-def _use_wkt_module(desc: DescFile, file_to_generate: frozenset[str]) -> bool:
-    """Return True if the descriptor should be imported from protobuf.wkt."""
+def _wkt_module(
+    desc: DescEnum | DescMessage | DescExtension | DescFile,
+    file_to_generate: frozenset[str],
+) -> Module | None:
     # Well-known types are imported from protobuf.wkt unless the
     # WKT proto is itself being generated, in which case we use
     # a relative import to the generated file.
-    return desc.name in _WKT_PROTO_PATHS and desc.name not in file_to_generate
+    desc_file = desc if isinstance(desc, DescFile) else desc.file
+    if desc_file.name in file_to_generate:
+        return None
+    mods = _WKT_PROTO_PATHS.get(desc_file.name)
+    if not mods:
+        return None
+    file_mod, member_mod = mods
+    return file_mod if isinstance(desc, DescFile) else member_mod
 
 
 def _write_imports(

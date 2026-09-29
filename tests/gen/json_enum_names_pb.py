@@ -24,7 +24,7 @@ from typing import Literal, TYPE_CHECKING, TypeAlias
 
 from protobuf import Enum, Message
 from protobuf._codegen import file_desc
-from protobuf.wkt import json_enumvalue_options_pb
+from protobuf.wkt.google.protobuf import json_enumvalue_options_pb
 
 if TYPE_CHECKING:
     from protobuf import DescFile

@@ -11,15 +11,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
-
-from typing import Final
-
-from ._bootstrap import _MAXIMUM_EDITION, _MINIMUM_EDITION
-from .wkt.google.protobuf.descriptor_pb import Edition
-
-minimum_supported_edition: Final[Edition] = Edition(_MINIMUM_EDITION)
-"""The minimum protobuf edition supported by this implementation."""
-
-maximum_supported_edition: Final[Edition] = Edition(_MAXIMUM_EDITION)
-"""The maximum protobuf edition supported by this implementation."""
+"""Protobuf Compiler Well-Known types."""

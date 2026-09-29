@@ -15,7 +15,7 @@
 
 from __future__ import annotations
 
-from ._gen import (
+from .google.protobuf import (
     any_pb,
     api_pb,
     c_sharp_features_pb,
@@ -34,17 +34,17 @@ from ._gen import (
     type_pb,
     wrappers_pb,
 )
-from ._gen.any_pb import Any
-from ._gen.api_pb import Api, Method, Mixin
-from ._gen.c_sharp_features_pb import CSharpFeatures, ext_csharp
-from ._gen.compiler import plugin_pb
-from ._gen.compiler.plugin_pb import (
+from .google.protobuf.any_pb import Any
+from .google.protobuf.api_pb import Api, Method, Mixin
+from .google.protobuf.c_sharp_features_pb import CSharpFeatures, ext_csharp
+from .google.protobuf.compiler import plugin_pb
+from .google.protobuf.compiler.plugin_pb import (
     CodeGeneratorRequest,
     CodeGeneratorResponse,
     Version,
 )
-from ._gen.cpp_features_pb import CppFeatures, ext_cpp
-from ._gen.descriptor_pb import (
+from .google.protobuf.cpp_features_pb import CppFeatures, ext_cpp
+from .google.protobuf.descriptor_pb import (
     DescriptorProto,
     Edition,
     EnumDescriptorProto,
@@ -71,17 +71,17 @@ from ._gen.descriptor_pb import (
     SymbolVisibility,
     UninterpretedOption,
 )
-from ._gen.duration_pb import Duration
-from ._gen.empty_pb import Empty
-from ._gen.field_mask_pb import FieldMask
-from ._gen.go_features_pb import GoFeatures, ext_go
-from ._gen.java_features_pb import JavaFeatures, ext_java
-from ._gen.json_enumvalue_options_pb import JsonEnumValueOptions, ext_json
-from ._gen.source_context_pb import SourceContext
-from ._gen.struct_pb import ListValue, NullValue, Struct, Value
-from ._gen.timestamp_pb import Timestamp
-from ._gen.type_pb import Enum, EnumValue, Field, Option, Syntax, Type
-from ._gen.wrappers_pb import (
+from .google.protobuf.duration_pb import Duration
+from .google.protobuf.empty_pb import Empty
+from .google.protobuf.field_mask_pb import FieldMask
+from .google.protobuf.go_features_pb import GoFeatures, ext_go
+from .google.protobuf.java_features_pb import JavaFeatures, ext_java
+from .google.protobuf.json_enumvalue_options_pb import JsonEnumValueOptions, ext_json
+from .google.protobuf.source_context_pb import SourceContext
+from .google.protobuf.struct_pb import ListValue, NullValue, Struct, Value
+from .google.protobuf.timestamp_pb import Timestamp
+from .google.protobuf.type_pb import Enum, EnumValue, Field, Option, Syntax, Type
+from .google.protobuf.wrappers_pb import (
     BoolValue,
     BytesValue,
     DoubleValue,
