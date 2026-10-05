@@ -79,8 +79,7 @@ class ApiResponse(Message[_ApiResponseFields]):
             trace_id: str | None = None,
             retry_after_ms: int | None = None,
             tags: list[str] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         request_id: int
         status_code: int
@@ -157,8 +156,7 @@ class LogRecord(Message[_LogRecordFields]):
             trace_id: str = "",
             span_id: str = "",
             source: LogRecord.Context | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         timestamp_nanos: int
         service_name: str
@@ -203,8 +201,7 @@ class LogRecord(Message[_LogRecordFields]):
                 file: str = "",
                 line: int = 0,
                 function: str = "",
-            ) -> None:
-                pass
+            ) -> None: ...
 
             file: str
             line: int
@@ -292,8 +289,7 @@ class AnalyticsEvent(Message[_AnalyticsEventFields]):
             user_id: str = "",
             properties: list[AnalyticsEvent.Property] | None = None,
             sections: list[AnalyticsEvent.Nested] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         event_id: str
         timestamp: int
@@ -329,8 +325,7 @@ class AnalyticsEvent(Message[_AnalyticsEventFields]):
                 *,
                 key: str = "",
                 value: Oneof[Literal["string_value"], str] | Oneof[Literal["int_value"], int] | Oneof[Literal["double_value"], float] | Oneof[Literal["bool_value"], bool] | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             key: str
             value: Oneof[Literal["string_value"], str] | Oneof[Literal["int_value"], int] | Oneof[Literal["double_value"], float] | Oneof[Literal["bool_value"], bool] | None
@@ -368,8 +363,7 @@ class AnalyticsEvent(Message[_AnalyticsEventFields]):
                 name: str = "",
                 attributes: list[AnalyticsEvent.Property] | None = None,
                 children: list[AnalyticsEvent.Nested] | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             name: str
             attributes: list[AnalyticsEvent.Property]
@@ -435,8 +429,7 @@ class MediaFrame(Message[_MediaFrameFields]):
             body: bytes = b"",
             chunks: list[bytes] | None = None,
             attachments: dict[str, bytes] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         frame_id: str
         timestamp_nanos: int

@@ -43,8 +43,7 @@ class MessageOptions(Message[_MessageOptionsFields]):
             self,
             *,
             max_depth: int | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         max_depth: int
 
@@ -90,8 +89,7 @@ class FieldOptions(Message[_FieldOptionsFields]):
             int: FieldOptions.Int | None = None,
             uint: FieldOptions.Uint | None = None,
             len: FieldOptions.Len | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         p: float
         int: FieldOptions.Int | None
@@ -126,8 +124,7 @@ class FieldOptions(Message[_FieldOptionsFields]):
                 *,
                 min: int | None = None,
                 max: int | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             min: int
             max: int
@@ -160,8 +157,7 @@ class FieldOptions(Message[_FieldOptionsFields]):
                 *,
                 min: int | None = None,
                 max: int | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             min: int
             max: int
@@ -194,8 +190,7 @@ class FieldOptions(Message[_FieldOptionsFields]):
                 *,
                 min: int | None = None,
                 max: int | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             min: int
             max: int

@@ -59,8 +59,7 @@ class Case(Message[_CaseFields]):
             name: str = "",
             typename: str = "",
             payload: bytes = b"",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         name: str
         typename: str
@@ -93,8 +92,7 @@ class Suite(Message[_SuiteFields]):
             self,
             *,
             cases: list[Case] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         cases: list[Case]
 

@@ -43,8 +43,7 @@ class GetUserProfileRequest(Message[_GetUserProfileRequestFields]):
             self,
             *,
             user_id: str = "",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         user_id: str
 
@@ -91,8 +90,7 @@ class Profile(Message[_ProfileFields]):
             email: str = "",
             profile_picture_url: str = "",
             bio: str = "",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         user_id: str
         name: str
@@ -123,8 +121,7 @@ class GetUserProfileResponse(Message[_GetUserProfileResponseFields]):
             self,
             *,
             profile: Profile | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         profile: Profile | None
 
@@ -161,8 +158,7 @@ class GetTimelineRequest(Message[_GetTimelineRequestFields]):
             user_id: str = "",
             limit: int = 0,
             offset: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         user_id: str
         limit: int
@@ -211,8 +207,7 @@ class TimelineItem(Message[_TimelineItemFields]):
             user_id: str = "",
             content: str = "",
             timestamp: Timestamp | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         item_id: str
         type: TimelineItem.Type
@@ -268,8 +263,7 @@ class GetTimelineResponse(Message[_GetTimelineResponseFields]):
             self,
             *,
             items: list[TimelineItem] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         items: list[TimelineItem]
 
@@ -296,8 +290,7 @@ class GetNotificationsRequest(Message[_GetNotificationsRequestFields]):
             self,
             *,
             user_id: str = "",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         user_id: str
 
@@ -344,8 +337,7 @@ class Notification(Message[_NotificationFields]):
             from_user_id: str = "",
             content: str = "",
             timestamp: Timestamp | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         notification_id: str
         type: Notification.Type
@@ -411,8 +403,7 @@ class GetNotificationsResponse(Message[_GetNotificationsResponseFields]):
             self,
             *,
             notifications: list[Notification] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         notifications: list[Notification]
 
@@ -439,8 +430,7 @@ class GetUserHomeRequest(Message[_GetUserHomeRequestFields]):
             self,
             *,
             user_id: str = "",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         user_id: str
 
@@ -477,8 +467,7 @@ class GetUserHomeResponse(Message[_GetUserHomeResponseFields]):
             profile: Profile | None = None,
             timeline: list[TimelineItem] | None = None,
             notifications: list[Notification] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         profile: Profile | None
         timeline: list[TimelineItem]

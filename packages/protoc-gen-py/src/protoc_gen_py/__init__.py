@@ -49,6 +49,8 @@ from protobuf.plugin import File, Ident, Module, Schema, get_comments, run
 if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
 
+    from protobuf import DescFieldValue
+
 _PROTOBUF = Module("protobuf")
 _DESC_FILE = _PROTOBUF.ident("DescFile", type_only=True)
 _MESSAGE = _PROTOBUF.ident("Message")
@@ -107,7 +109,7 @@ def _generate(schema: Schema[_Options]) -> None:
 
 
 def _generate_file(f: File, desc: DescFile) -> None:
-    f.preamble(desc)
+    f.preamble(desc, suppress_deprecated=_uses_deprecated_types(desc))
     _generate_deprecated_aliases(f, desc)
     for msg in desc.messages:
         _generate_message(f, msg)
@@ -134,6 +136,56 @@ def _generate_deprecated_aliases(f: File, desc: DescFile) -> None:
     f.print()
 
 
+def _uses_deprecated_types(desc: DescFile) -> bool:
+    # Deprecated fields and enum values are only declared, never referenced, by
+    # generated code. Deprecated types are referenced by annotations and the
+    # file descriptor's stub map.
+    if desc.name == _BOOT_FILE_PATH:
+        # The boot code constructs descriptor messages with deprecated fields.
+        return True
+    for symbol in _all_symbols_in_file(desc):
+        match symbol:
+            case DescMessage():
+                if _is_deprecated_type(symbol) or any(
+                    _is_deprecated_field_value_type(field.value)
+                    for field in symbol.fields
+                ):
+                    return True
+            case DescEnum():
+                if _is_deprecated_type(symbol):
+                    return True
+            case DescExtension():
+                if _is_deprecated_type(
+                    symbol.extendee
+                ) or _is_deprecated_field_value_type(symbol.value):
+                    return True
+    return False
+
+
+def _is_deprecated_field_value_type(value: DescFieldValue) -> bool:
+    match value:
+        case DescFieldValueMessage(message=message):
+            return _is_deprecated_type(message)
+        case DescFieldValueScalar():
+            return False
+        case DescFieldValueEnum(enum=enum):
+            return _is_deprecated_type(enum)
+        case DescFieldValueList(element=element):
+            return _is_deprecated_type(element)
+        case DescFieldValueMap(value=map_value):
+            return _is_deprecated_type(map_value)
+
+
+def _is_deprecated_type(desc: DescMessage | DescEnum | ScalarType) -> bool:
+    # A type nested in a deprecated message is referenced through it.
+    parent = desc
+    while isinstance(parent, DescMessage | DescEnum):
+        if parent.deprecated:
+            return True
+        parent = parent.parent
+    return False
+
+
 def _has_deprecated_members(desc: DescMessage | DescEnum | DescExtension) -> bool:
     match desc:
         case DescMessage():
@@ -142,7 +194,7 @@ def _has_deprecated_members(desc: DescMessage | DescEnum | DescExtension) -> boo
             return any(value.deprecated for value in desc.values)
         case DescExtension():
             # Type checkers can't report access to a deprecated module
-            # attribute, so we can't handle currently handle them.
+            # attribute, so we can't currently handle them.
             return False
 
 
@@ -231,22 +283,20 @@ def _generate_message(f: File, msg: DescMessage) -> None:
 
 def _generate_message_init(f: File, members: Sequence[DescField | DescOneof]) -> None:
     if any(_is_deprecated_field(m) for m in members):
-        # A parameter cannot be deprecated, so passing any deprecated field
-        # selects a deprecated overload.
+        # An individual parameter cannot be deprecated, so generate a non-deprecated
+        # init overload with no deprecated fields and a deprecated init overload with
+        # all fields. Invoking without deprecated fields will select the
+        # non-deprecated overload.
         f.print("@", _OVERLOAD_ALIAS)
-        _generate_init_signature(
-            f, [m for m in members if not _is_deprecated_field(m)], overload=True
-        )
+        _generate_init_signature(f, [m for m in members if not _is_deprecated_field(m)])
         f.print("@", _OVERLOAD_ALIAS)
         f.print("@", _DEPRECATED_ALIAS, '("', _DEPRECATED_INIT, '", category=None)')
-        _generate_init_signature(f, members, overload=True)
-    _generate_init_signature(f, members, overload=False)
+        _generate_init_signature(f, members)
+    _generate_init_signature(f, members)
     f.print()
 
 
-def _generate_init_signature(
-    f: File, members: Sequence[DescField | DescOneof], *, overload: bool
-) -> None:
+def _generate_init_signature(f: File, members: Sequence[DescField | DescOneof]) -> None:
     with f.scope("def __init__("):
         f.print("self,")
         if len(members) > 0:
@@ -261,11 +311,7 @@ def _generate_init_signature(
                 _member_init_default(member),
                 ",",
             )
-    if overload:
-        f.print(") -> None: ...")
-    else:
-        with f.scope(") -> None:"):
-            f.print("pass")
+    f.print(") -> None: ...")
 
 
 def _generate_message_members(

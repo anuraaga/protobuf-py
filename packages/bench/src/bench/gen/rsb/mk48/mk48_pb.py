@@ -48,8 +48,7 @@ class Vector2f(Message[_Vector2fFields]):
             *,
             x: float = 0,
             y: float = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: float
         y: float
@@ -92,8 +91,7 @@ class Transform(Message[_TransformFields]):
             angle: int = 0,
             position: Vector2f | None = None,
             velocity: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         altitude: int
         angle: int
@@ -133,8 +131,7 @@ class Guidance(Message[_GuidanceFields]):
             angle: int = 0,
             submerge: bool = False,
             velocity: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         angle: int
         submerge: bool
@@ -198,8 +195,7 @@ class Contact(Message[_ContactFields]):
             reloads: list[bool] | None = None,
             transform: Transform | None = None,
             turret_angles: list[int] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         damage: int
         entity_id: int
@@ -238,8 +234,7 @@ class ChunkId(Message[_ChunkIdFields]):
             *,
             x: int = 0,
             y: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: int
         y: int
@@ -272,8 +267,7 @@ class TerrainUpdate(Message[_TerrainUpdateFields]):
             *,
             chunk_id: ChunkId | None = None,
             data: bytes = b"",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         chunk_id: ChunkId | None
         data: bytes
@@ -316,8 +310,7 @@ class Update(Message[_UpdateFields]):
             score: int = 0,
             world_radius: float = 0,
             terrain_updates: list[TerrainUpdate] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         contacts: list[Contact]
         score: int
@@ -347,8 +340,7 @@ class Updates(Message[_UpdatesFields]):
             self,
             *,
             updates: list[Update] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         updates: list[Update]
 

@@ -53,8 +53,7 @@ class Vector3(Message[_Vector3Fields]):
             x: float = 0,
             y: float = 0,
             z: float = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: float
         y: float
@@ -98,8 +97,7 @@ class Triangle(Message[_TriangleFields]):
             v1: Vector3 | None = None,
             v2: Vector3 | None = None,
             normal: Vector3 | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         v0: Vector3 | None
         v1: Vector3 | None
@@ -129,8 +127,7 @@ class Mesh(Message[_MeshFields]):
             self,
             *,
             triangles: list[Triangle] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         triangles: list[Triangle]
 

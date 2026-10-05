@@ -56,8 +56,7 @@ class Proto2Strings(Message[_Proto2StringsFields]):
             s2: list[str] | None = None,
             s3: dict[str, str] | None = None,
             o: Oneof[Literal["s4"], str] | Oneof[Literal["z"], int] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         s1: str
         s2: list[str]

@@ -53,8 +53,7 @@ class Item(Message[_ItemFields]):
             count: int = 0,
             slot: int = 0,
             id: str = "",
-        ) -> None:
-            pass
+        ) -> None: ...
 
         count: int
         slot: int
@@ -113,8 +112,7 @@ class Abilities(Message[_AbilitiesFields]):
             invulnerable: bool = False,
             may_build: bool = False,
             instabuild: bool = False,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         walk_speed: float
         fly_speed: float
@@ -157,8 +155,7 @@ class Vector3d(Message[_Vector3dFields]):
             x: float = 0,
             y: float = 0,
             z: float = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: float
         y: float
@@ -192,8 +189,7 @@ class Vector2f(Message[_Vector2fFields]):
             *,
             x: float = 0,
             y: float = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: float
         y: float
@@ -236,8 +232,7 @@ class Uuid(Message[_UuidFields]):
             x1: int = 0,
             x2: int = 0,
             x3: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x0: int
         x1: int
@@ -342,8 +337,7 @@ class Entity(Message[_EntityFields]):
             custom_name_visible: bool = False,
             silent: bool = False,
             glowing: bool = False,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         id: str
         pos: Vector3d | None
@@ -430,8 +424,7 @@ class RecipeBook(Message[_RecipeBookFields]):
             is_blasting_furnace_gui_open: bool = False,
             is_smoker_filtering_craftable: bool = False,
             is_smoker_gui_open: bool = False,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         recipes: list[str]
         to_be_displayed: list[str]
@@ -472,8 +465,7 @@ class Vehicle(Message[_VehicleFields]):
             *,
             uuid: Uuid | None = None,
             entity: Entity | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         uuid: Uuid | None
         entity: Entity | None
@@ -636,8 +628,7 @@ class Player(Message[_PlayerFields]):
             shoulder_entity_right: Entity | None = None,
             seen_credits: bool = False,
             recipe_book: RecipeBook | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         game_type: GameType
         previous_game_type: GameType
@@ -691,8 +682,7 @@ class Players(Message[_PlayersFields]):
             self,
             *,
             players: list[Player] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         players: list[Player]
 

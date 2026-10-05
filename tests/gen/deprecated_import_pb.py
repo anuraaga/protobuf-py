@@ -17,8 +17,7 @@
 # ruff: noqa: PGH004
 # ruff: noqa
 # pyright: reportDeprecated=false
-# ty: ignore[unused-ignore-comment]
-# ty: ignore[deprecated, unused-ignore-comment]
+# ty: ignore[deprecated]
 # fmt: off
 
 from __future__ import annotations
@@ -74,8 +73,7 @@ class UsesDeprecated(Message[_UsesDeprecatedFields]):
             enums: list[DeprecatedEnum] | None = None,
             messages: dict[str, DeprecatedMessage] | None = None,
             choice: Oneof[Literal["nested"], DeprecatedMessage.NestedDeprecatedMessage] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         message: DeprecatedMessage | None
         enums: list[DeprecatedEnum]

@@ -33,8 +33,7 @@ class Extensions(Message[_ExtensionsFields]):
 
         def __init__(
             self,
-        ) -> None:
-            pass
+        ) -> None: ...
 
 _RequiredFields: TypeAlias = Literal["x", "y", "z"]
 
@@ -73,8 +72,7 @@ class Required(Message[_RequiredFields]):
             x: int | None = None,
             y: Required | None = None,
             z: Required.Empty | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         x: int
         y: Required | None
@@ -95,8 +93,7 @@ class Required(Message[_RequiredFields]):
 
             def __init__(
                 self,
-            ) -> None:
-                pass
+            ) -> None: ...
 
 _DependsOnRequiredFields: TypeAlias = Literal["a", "b", "c"]
 
@@ -131,8 +128,7 @@ class DependsOnRequired(Message[_DependsOnRequiredFields]):
             a: Required | None = None,
             b: list[Required] | None = None,
             c: dict[int, Required] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         a: Required | None
         b: list[Required]
@@ -166,8 +162,7 @@ class Groups(Message[_GroupsFields]):
             *,
             singular: Groups.Singular | None = None,
             repeated: list[Groups.Repeated] | None = None,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         singular: Groups.Singular | None
         repeated: list[Groups.Repeated]
@@ -210,8 +205,7 @@ class Groups(Message[_GroupsFields]):
                 b: int | None = None,
                 g: Groups | None = None,
                 nested: Groups.Singular.Nested | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             a: int
             b: int
@@ -241,8 +235,7 @@ class Groups(Message[_GroupsFields]):
                     self,
                     *,
                     a: int | None = None,
-                ) -> None:
-                    pass
+                ) -> None: ...
 
                 a: int
 
@@ -274,8 +267,7 @@ class Groups(Message[_GroupsFields]):
                 *,
                 a: int | None = None,
                 b: int | None = None,
-            ) -> None:
-                pass
+            ) -> None: ...
 
             a: int
             b: int

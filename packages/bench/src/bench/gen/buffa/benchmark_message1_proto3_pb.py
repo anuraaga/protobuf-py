@@ -241,8 +241,7 @@ class GoogleMessage1(Message[_GoogleMessage1Fields]):
             field128: int = 0,
             field129: str = "",
             field131: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         field1: str
         field9: str
@@ -404,8 +403,7 @@ class GoogleMessage1SubMessage(Message[_GoogleMessage1SubMessageFields]):
             field205: str = "",
             field207: int = 0,
             field300: int = 0,
-        ) -> None:
-            pass
+        ) -> None: ...
 
         field1: int
         field2: int
