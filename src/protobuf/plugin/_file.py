@@ -506,8 +506,6 @@ def _preamble(
         "# ruff: noqa",
     ]
     if suppress_deprecated:
-        # Generated code can't be changed to avoid referencing deprecated
-        # symbols.
         lines.extend(["# pyright: reportDeprecated=false", "# ty: ignore[deprecated]"])
     if not no_fmt_off:
         lines.append("# fmt: off")
