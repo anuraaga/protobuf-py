@@ -16,9 +16,10 @@ permissions:
 env:
   # When bumping, also bump MATURIN_ARGS in ci.yaml
   # maturin flags to build targets we publish non-abi3 wheels for
-  UNSTABLE_API_FLAGS: -i 3.10 -i 3.12 -i 3.13 -i 3.14 -i 3.14t
+  UNSTABLE_API_FLAGS: -i 3.13 -i 3.14 -i 3.14t -i 3.15 -i 3.15t
   # maturin flags to build targets we publish abi3 wheels for
   ABI3_FLAGS: -i 3.11 --features pyo3/abi3-py311
+  ABI3T_FLAGS: -i 3.15t --features pyo3/abi3t-py315
 
 jobs:
   ext-linux:
@@ -36,12 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: 3.x
-
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -51,11 +46,20 @@ jobs:
           manylinux: ${{ matrix.manylinux }}
           working-directory: packages/protobuf-py-ext
 
-      - name: Build abi3 wheels
+      - name: Build abi3 wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out ../../dist ${{ env.ABI3_FLAGS }}
+          sccache: true
+          manylinux: ${{ matrix.manylinux }}
+          working-directory: packages/protobuf-py-ext
+
+      - name: Build abi3t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out ../../dist ${{ env.ABI3T_FLAGS }}
           sccache: true
           manylinux: ${{ matrix.manylinux }}
           working-directory: packages/protobuf-py-ext
@@ -79,12 +83,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-
-      - name: Build abi3 wheels
+      - name: Build abi3 wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
-          args: --release --out ../../dist ${{ env.ABI3_FLAGS }} --features pyo3/generate-import-lib
+          args: --release --out ../../dist ${{ env.ABI3_FLAGS }}
+          sccache: true
+          working-directory: packages/protobuf-py-ext
+
+      - name: Build abi3t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          args: --release --out ../../dist ${{ env.ABI3T_FLAGS }}
           sccache: true
           working-directory: packages/protobuf-py-ext
 
@@ -104,18 +113,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: |
-            3.10
-            3.11
-            3.12
-            3.13
-            3.14
-            3.14t
-
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-
       - name: Build wheels
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
@@ -124,11 +121,19 @@ jobs:
           sccache: true
           working-directory: packages/protobuf-py-ext
 
-      - name: Build abi3 wheels
+      - name: Build abi3 wheel
         uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           target: ${{ matrix.platform.target }}
           args: --release --out ../../dist ${{ env.ABI3_FLAGS }}
+          sccache: true
+          working-directory: packages/protobuf-py-ext
+
+      - name: Build abi3t wheel
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out ../../dist ${{ env.ABI3T_FLAGS }}
           sccache: true
           working-directory: packages/protobuf-py-ext
 
