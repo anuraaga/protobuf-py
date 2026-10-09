@@ -394,7 +394,7 @@ skip-magic-trailing-comma = true
 docstring-code-format = true
 
 [tool.ruff.lint]
-typing-extensions = false
+typing-extensions = true
 select = ["ALL"]
 ignore = [
   # Rules recommended to ignore when using ruff formatting
