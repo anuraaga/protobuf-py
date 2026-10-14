@@ -317,11 +317,6 @@ sequence = [
 cwd = "packages/bench"
 
 ## Native extension
-[tool.poe.tasks.ext-build]
-help = "Build native extension (requires Rust)"
-cmd = "uv run maturin build --release --out ../../dist ${MATURIN_ARGS}"
-cwd = "packages/protobuf-py-ext"
-
 [tool.poe.tasks.ext-format]
 help = "Format native extension code (requires Rust)"
 sequence = [
@@ -477,12 +472,6 @@ exclude = [
   "packages/protoc-gen-py",
   "packages/upstream-protobuf",
 ]
-
-# Workaround uv caching the package without building it first.
-# https://github.com/astral-sh/uv/issues/11390
-[tool.uv]
-reinstall-package = ["protobuf-py-ext"]
-no-build-isolation-package = ["protobuf-py-ext"]
 
 [[tool.uv.index]]
 name = "buf"
