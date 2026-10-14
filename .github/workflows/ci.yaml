@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   test:
-    name: ${{ matrix.runner }} / ${{ matrix.python-version }} / ${{ matrix.native-ext && 'ext' || 'standard' }}
+    name: ${{ matrix.runner }} / ${{ matrix.python-version }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
