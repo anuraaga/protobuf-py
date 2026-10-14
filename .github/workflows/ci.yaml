@@ -52,8 +52,6 @@ jobs:
         if: matrix.native-ext
         run: uv run poe ext-build
       - run: uv run poe test
-        env:
-          ASSERT_MARSHALER_IMPLEMENTATION: ${{ matrix.native-ext && 'native' || 'python' }}
 
       # Ensure tests pass without optional dependencies. Issues would come from eager imports, so we go ahead
       # and run the single conformance test only to keep this step lightweight and give high coverage.
@@ -81,8 +79,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: uv sync --locked
       - run: uv run poe test
-        env:
-          ASSERT_MARSHALER_IMPLEMENTATION: python
 
   lint:
     runs-on: ubuntu-26.04

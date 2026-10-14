@@ -119,11 +119,6 @@ jobs:
 
       - run: uv sync --frozen
 
-      # We add the dependency before publishing to match the wheels we publish above while not requiring
-      # the native extension for all protobuf-py users / developers.
-      - name: add dependency on protobuf-py-ext
-        run: uv add "protobuf-py-ext==$(uv version --short); platform_python_implementation == 'CPython' and ((platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')) or (platform_system == 'Darwin' and platform_machine == 'arm64') or (platform_system == 'Windows' and (platform_machine == 'AMD64' or platform_machine == 'ARM64')))"
-
       - name: build protobuf-py
         run: uv build
 
