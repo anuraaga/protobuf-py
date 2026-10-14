@@ -743,7 +743,7 @@ wheels = [
 
 [[package]]
 name = "protobuf-py"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')" },
@@ -903,7 +903,7 @@ requires-dist = [
 
 [[package]]
 name = "protobuf-py-ext"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "packages/protobuf-py-ext" }
 
 [package.dev-dependencies]
@@ -918,7 +918,7 @@ dev = [{ name = "maturin", specifier = "==1.15.0" }]
 
 [[package]]
 name = "protoc-gen-py"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "packages/protoc-gen-py" }
 dependencies = [
     { name = "protobuf-py" },
