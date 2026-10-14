@@ -51,7 +51,8 @@ class BenchmarkDataset(Message[_BenchmarkDatasetFields]):
             name: str = "",
             message_name: str = "",
             payload: list[bytes] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         message_name: str

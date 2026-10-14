@@ -17,7 +17,8 @@
 # ruff: noqa: PGH004
 # ruff: noqa
 # pyright: reportDeprecated=false
-# ty: ignore[deprecated]
+# ty: ignore[unused-ignore-comment]
+# ty: ignore[deprecated, unused-ignore-comment]
 
 from __future__ import annotations
 
@@ -62,9 +63,8 @@ class FileDescriptorSet(Message[_FileDescriptorSetFields], FileDescriptorSetMixi
 
     if TYPE_CHECKING:
 
-        def __init__(
-            self, *, file: list[FileDescriptorProto] | None = None
-        ) -> None: ...
+        def __init__(self, *, file: list[FileDescriptorProto] | None = None) -> None:
+            pass
 
         file: list[FileDescriptorProto]
 
@@ -224,7 +224,8 @@ class FileDescriptorProto(Message[_FileDescriptorProtoFields]):
             source_code_info: SourceCodeInfo | None = None,
             syntax: str | None = None,
             edition: Edition | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         package: str
@@ -347,7 +348,8 @@ class DescriptorProto(Message[_DescriptorProtoFields]):
             reserved_range: list[DescriptorProto.ReservedRange] | None = None,
             reserved_name: list[str] | None = None,
             visibility: SymbolVisibility | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         field: list[FieldDescriptorProto]
@@ -398,7 +400,8 @@ class DescriptorProto(Message[_DescriptorProtoFields]):
                 start: int | None = None,
                 end: int | None = None,
                 options: ExtensionRangeOptions | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             start: int
             end: int
@@ -437,7 +440,8 @@ class DescriptorProto(Message[_DescriptorProtoFields]):
 
             def __init__(
                 self, *, start: int | None = None, end: int | None = None
-            ) -> None: ...
+            ) -> None:
+                pass
 
             start: int
             end: int
@@ -496,7 +500,8 @@ class ExtensionRangeOptions(Message[_ExtensionRangeOptionsFields]):
             declaration: list[ExtensionRangeOptions.Declaration] | None = None,
             features: FeatureSet | None = None,
             verification: ExtensionRangeOptions.VerificationState | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         uninterpreted_option: list[UninterpretedOption]
         declaration: list[ExtensionRangeOptions.Declaration]
@@ -564,7 +569,8 @@ class ExtensionRangeOptions(Message[_ExtensionRangeOptionsFields]):
                 type: str | None = None,
                 reserved: bool | None = None,
                 repeated: bool | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             number: int
             full_name: str
@@ -744,7 +750,8 @@ class FieldDescriptorProto(Message[_FieldDescriptorProtoFields]):
             json_name: str | None = None,
             options: FieldOptions | None = None,
             proto3_optional: bool | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         number: int
@@ -941,7 +948,8 @@ class OneofDescriptorProto(Message[_OneofDescriptorProtoFields]):
 
         def __init__(
             self, *, name: str | None = None, options: OneofOptions | None = None
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         options: OneofOptions | None
@@ -1016,7 +1024,8 @@ class EnumDescriptorProto(Message[_EnumDescriptorProtoFields]):
             reserved_range: list[EnumDescriptorProto.EnumReservedRange] | None = None,
             reserved_name: list[str] | None = None,
             visibility: SymbolVisibility | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         value: list[EnumValueDescriptorProto]
@@ -1061,7 +1070,8 @@ class EnumDescriptorProto(Message[_EnumDescriptorProtoFields]):
 
             def __init__(
                 self, *, start: int | None = None, end: int | None = None
-            ) -> None: ...
+            ) -> None:
+                pass
 
             start: int
             end: int
@@ -1103,7 +1113,8 @@ class EnumValueDescriptorProto(Message[_EnumValueDescriptorProtoFields]):
             name: str | None = None,
             number: int | None = None,
             options: EnumValueOptions | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         number: int
@@ -1146,7 +1157,8 @@ class ServiceDescriptorProto(Message[_ServiceDescriptorProtoFields]):
             name: str | None = None,
             method: list[MethodDescriptorProto] | None = None,
             options: ServiceOptions | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         method: list[MethodDescriptorProto]
@@ -1225,7 +1237,8 @@ class MethodDescriptorProto(Message[_MethodDescriptorProtoFields]):
             options: MethodOptions | None = None,
             client_streaming: bool | None = None,
             server_streaming: bool | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: str
         input_type: str
@@ -1545,7 +1558,8 @@ class FileOptions(Message[_FileOptionsFields]):
             ruby_package: str | None = None,
             features: FeatureSet | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         java_package: str
         java_outer_classname: str
@@ -1781,7 +1795,8 @@ class MessageOptions(Message[_MessageOptionsFields]):
             deprecated_legacy_json_field_conflicts: bool | None = None,
             features: FeatureSet | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         message_set_wire_format: bool
         no_standard_descriptor_accessor: bool
@@ -2036,7 +2051,8 @@ class FieldOptions(Message[_FieldOptionsFields]):
             features: FeatureSet | None = None,
             feature_support: FieldOptions.FeatureSupport | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         ctype: FieldOptions.CType
         packed: bool
@@ -2087,7 +2103,8 @@ class FieldOptions(Message[_FieldOptionsFields]):
 
             def __init__(
                 self, *, edition: Edition | None = None, value: str | None = None
-            ) -> None: ...
+            ) -> None:
+                pass
 
             edition: Edition
             value: str
@@ -2166,7 +2183,8 @@ class FieldOptions(Message[_FieldOptionsFields]):
                 deprecation_warning: str | None = None,
                 edition_removed: Edition | None = None,
                 removal_error: str | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             edition_introduced: Edition
             edition_deprecated: Edition
@@ -2367,7 +2385,8 @@ class OneofOptions(Message[_OneofOptionsFields]):
             *,
             features: FeatureSet | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         features: FeatureSet | None
         uninterpreted_option: list[UninterpretedOption]
@@ -2472,7 +2491,8 @@ class EnumOptions(Message[_EnumOptionsFields]):
             deprecated_legacy_json_field_conflicts: bool | None = None,
             features: FeatureSet | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         allow_alias: bool
         deprecated: bool
@@ -2564,7 +2584,8 @@ class EnumValueOptions(Message[_EnumValueOptionsFields]):
             debug_redact: bool | None = None,
             feature_support: FieldOptions.FeatureSupport | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         deprecated: bool
         features: FeatureSet | None
@@ -2621,7 +2642,8 @@ class ServiceOptions(Message[_ServiceOptionsFields]):
             features: FeatureSet | None = None,
             deprecated: bool | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         features: FeatureSet | None
         deprecated: bool
@@ -2681,7 +2703,8 @@ class MethodOptions(Message[_MethodOptionsFields]):
             idempotency_level: MethodOptions.IdempotencyLevel | None = None,
             features: FeatureSet | None = None,
             uninterpreted_option: list[UninterpretedOption] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         deprecated: bool
         idempotency_level: MethodOptions.IdempotencyLevel
@@ -2802,7 +2825,8 @@ class UninterpretedOption(Message[_UninterpretedOptionFields]):
             double_value: float | None = None,
             string_value: bytes | None = None,
             aggregate_value: str | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         name: list[UninterpretedOption.NamePart]
         identifier_value: str
@@ -2843,7 +2867,8 @@ class UninterpretedOption(Message[_UninterpretedOptionFields]):
 
             def __init__(
                 self, *, name_part: str | None = None, is_extension: bool | None = None
-            ) -> None: ...
+            ) -> None:
+                pass
 
             name_part: str
             is_extension: bool
@@ -2942,7 +2967,8 @@ class FeatureSet(Message[_FeatureSetFields]):
             | None = None,
             enforce_proto_limits: FeatureSet.ProtoLimitsFeature.EnforceProtoLimits
             | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         field_presence: FeatureSet.FieldPresence
         enum_type: FeatureSet.EnumType
@@ -2967,7 +2993,8 @@ class FeatureSet(Message[_FeatureSetFields]):
 
         if TYPE_CHECKING:
 
-            def __init__(self) -> None: ...
+            def __init__(self) -> None:
+                pass
 
         class DefaultSymbolVisibility(Enum):
             """
@@ -3027,7 +3054,8 @@ class FeatureSet(Message[_FeatureSetFields]):
 
         if TYPE_CHECKING:
 
-            def __init__(self) -> None: ...
+            def __init__(self) -> None:
+                pass
 
         class EnforceProtoLimits(Enum):
             """
@@ -3295,7 +3323,8 @@ class FeatureSetDefaults(Message[_FeatureSetDefaultsFields]):
             defaults: list[FeatureSetDefaults.FeatureSetEditionDefault] | None = None,
             minimum_edition: Edition | None = None,
             maximum_edition: Edition | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         defaults: list[FeatureSetDefaults.FeatureSetEditionDefault]
         minimum_edition: Edition
@@ -3345,7 +3374,8 @@ class FeatureSetDefaults(Message[_FeatureSetDefaultsFields]):
                 edition: Edition | None = None,
                 overridable_features: FeatureSet | None = None,
                 fixed_features: FeatureSet | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             edition: Edition
             overridable_features: FeatureSet | None
@@ -3421,7 +3451,8 @@ class SourceCodeInfo(Message[_SourceCodeInfoFields]):
 
         def __init__(
             self, *, location: list[SourceCodeInfo.Location] | None = None
-        ) -> None: ...
+        ) -> None:
+            pass
 
         location: list[SourceCodeInfo.Location]
 
@@ -3575,7 +3606,8 @@ class SourceCodeInfo(Message[_SourceCodeInfoFields]):
                 leading_comments: str | None = None,
                 trailing_comments: str | None = None,
                 leading_detached_comments: list[str] | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             path: list[int]
             span: list[int]
@@ -3613,7 +3645,8 @@ class GeneratedCodeInfo(Message[_GeneratedCodeInfoFields]):
 
         def __init__(
             self, *, annotation: list[GeneratedCodeInfo.Annotation] | None = None
-        ) -> None: ...
+        ) -> None:
+            pass
 
         annotation: list[GeneratedCodeInfo.Annotation]
 
@@ -3674,7 +3707,8 @@ class GeneratedCodeInfo(Message[_GeneratedCodeInfoFields]):
                 begin: int | None = None,
                 end: int | None = None,
                 semantic: GeneratedCodeInfo.Annotation.Semantic | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             path: list[int]
             source_file: str

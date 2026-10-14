@@ -66,7 +66,8 @@ class Message9(Message[_Message9Fields]):
             f_3: int | None = None,
             f_4: list[str] | None = None,
             f_8: Message9.M1 | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         f_0: bool
         f_1: str
@@ -108,7 +109,8 @@ class Message9(Message[_Message9Fields]):
                 f_0: bool | None = None,
                 f_3: Message9.M1.M2 | None = None,
                 f_4: Message9.M1.M3 | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             f_0: bool
             f_3: Message9.M1.M2 | None
@@ -147,7 +149,8 @@ class Message9(Message[_Message9Fields]):
                     f_0: str | None = None,
                     f_2: Message9.M1.M2.M4 | None = None,
                     f_3: list[Message9.M1.M2.M5] | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: str
                 f_2: Message9.M1.M2.M4 | None
@@ -186,7 +189,8 @@ class Message9(Message[_Message9Fields]):
                         f_0: int | None = None,
                         f_3: list[Message9.M1.M2.M4.M6] | None = None,
                         f_5: list[Message9.M1.M2.M4.M7] | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: int
                     f_3: list[Message9.M1.M2.M4.M6]
@@ -215,7 +219,8 @@ class Message9(Message[_Message9Fields]):
                             self,
                             *,
                             f_0: bytes | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: bytes
 
@@ -242,7 +247,8 @@ class Message9(Message[_Message9Fields]):
                             self,
                             *,
                             f_0: list[Message9.M1.M2.M4.M7.E2] | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: list[Message9.M1.M2.M4.M7.E2]
 
@@ -314,7 +320,8 @@ class Message9(Message[_Message9Fields]):
                         *,
                         f_0: float | None = None,
                         f_3: list[Message9.M1.M2.M5.M8] | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: float
                     f_3: list[Message9.M1.M2.M5.M8]
@@ -362,7 +369,8 @@ class Message9(Message[_Message9Fields]):
                             f_2: int | None = None,
                             f_3: Message9.M1.M2.M5.M8.E3 | None = None,
                             f_5: Message9.M1.M2.M5.M8.M9 | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: list[int]
                         f_1: int
@@ -413,7 +421,8 @@ class Message9(Message[_Message9Fields]):
                                 f_2: float | None = None,
                                 f_6: Message9.M1.M2.M5.M8.M9.M10 | None = None,
                                 f_7: Message9.M1.M2.M5.M8.M9.M11 | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
                             f_1: str
@@ -444,7 +453,8 @@ class Message9(Message[_Message9Fields]):
                                     self,
                                     *,
                                     f_0: int | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: int
 
@@ -476,7 +486,8 @@ class Message9(Message[_Message9Fields]):
                                     *,
                                     f_0: float | None = None,
                                     f_2: list[Message9.M1.M2.M5.M8.M9.M11.M12] | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: float
                                 f_2: list[Message9.M1.M2.M5.M8.M9.M11.M12]
@@ -539,7 +550,8 @@ class Message9(Message[_Message9Fields]):
                                         f_5: int | None = None,
                                         f_6: bytes | None = None,
                                         f_13: Message9.M1.M2.M5.M8.M9.M11.M12.M13 | None = None,
-                                    ) -> None: ...
+                                    ) -> None:
+                                        pass
 
                                     f_0: float
                                     f_1: int
@@ -603,7 +615,8 @@ class Message9(Message[_Message9Fields]):
                                             f_4: Message9.M1.M2.M5.M8.M9.M11.M12.M13.E6 | None = None,
                                             f_5: int | None = None,
                                             f_13: Message9.M1.M2.M5.M8.M9.M11.M12.M13.M14 | None = None,
-                                        ) -> None: ...
+                                        ) -> None:
+                                            pass
 
                                         f_0: int
                                         f_1: Message9.M1.M2.M5.M8.M9.M11.M12.M13.E5
@@ -636,7 +649,8 @@ class Message9(Message[_Message9Fields]):
                                                 self,
                                                 *,
                                                 f_0: float | None = None,
-                                            ) -> None: ...
+                                            ) -> None:
+                                                pass
 
                                             f_0: float
 
@@ -823,7 +837,8 @@ class Message9(Message[_Message9Fields]):
                     self,
                     *,
                     f_0: list[int] | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: list[int]
 

@@ -17,7 +17,8 @@
 # ruff: noqa: PGH004
 # ruff: noqa
 # pyright: reportDeprecated=false
-# ty: ignore[deprecated]
+# ty: ignore[unused-ignore-comment]
+# ty: ignore[deprecated, unused-ignore-comment]
 # fmt: off
 
 from __future__ import annotations
@@ -91,7 +92,8 @@ class DeprecatedMessage(Message[_DeprecatedMessageFields]):
             value: int = 0,
             recursive: DeprecatedMessage | None = None,
             deprecated_value: int = 0,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         value: int
         recursive: DeprecatedMessage | None
@@ -118,7 +120,8 @@ class DeprecatedMessage(Message[_DeprecatedMessageFields]):
 
             def __init__(
                 self,
-            ) -> None: ...
+            ) -> None:
+                pass
 
 _MessageWithDeprecatedFieldsFields: TypeAlias = Literal["message", "enum", "deprecated_field", "deprecated_list", "deprecated_map", "deprecated_message", "deprecated_choice", "other_choice", "value", "deprecated", "property", "overload"]
 
@@ -226,7 +229,8 @@ class MessageWithDeprecatedFields(Message[_MessageWithDeprecatedFieldsFields]):
             deprecated: bool = False,
             property: bool = False,
             overload: bool = False,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         message: DeprecatedMessage | None
         enum: DeprecatedEnum
@@ -276,7 +280,8 @@ class MessageWithDeprecatedFields(Message[_MessageWithDeprecatedFieldsFields]):
 
             def __init__(
                 self,
-            ) -> None: ...
+            ) -> None:
+                pass
 
     if TYPE_CHECKING:
         class _NestedEnumMeta(EnumMeta):

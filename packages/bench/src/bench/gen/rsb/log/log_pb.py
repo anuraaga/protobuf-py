@@ -58,7 +58,8 @@ class Address(Message[_AddressFields]):
             x1: int = 0,
             x2: int = 0,
             x3: int = 0,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         x0: int
         x1: int
@@ -118,7 +119,8 @@ class Log(Message[_LogFields]):
             request: str = "",
             code: int = 0,
             size: int = 0,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         address: Address | None
         identity: str
@@ -151,7 +153,8 @@ class Logs(Message[_LogsFields]):
             self,
             *,
             logs: list[Log] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         logs: list[Log]
 

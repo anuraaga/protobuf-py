@@ -56,7 +56,8 @@ class Message19(Message[_Message19Fields]):
             f_2: list[Message19.M1] | None = None,
             f_3: Message19.M2 | None = None,
             f_4: Message19.M3 | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         f_0: list[int]
         f_2: list[Message19.M1]
@@ -96,7 +97,8 @@ class Message19(Message[_Message19Fields]):
                 f_0: bytes | None = None,
                 f_2: Message19.M1.M6 | None = None,
                 f_3: Message19.M1.M9 | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             f_0: bytes
             f_2: Message19.M1.M6 | None
@@ -130,7 +132,8 @@ class Message19(Message[_Message19Fields]):
                     *,
                     f_0: bytes | None = None,
                     f_2: list[Message19.M1.M6.M11] | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: bytes
                 f_2: list[Message19.M1.M6.M11]
@@ -163,7 +166,8 @@ class Message19(Message[_Message19Fields]):
                         *,
                         f_0: float | None = None,
                         f_4: Message19.M1.M6.M11.M18 | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: float
                     f_4: Message19.M1.M6.M11.M18 | None
@@ -221,7 +225,8 @@ class Message19(Message[_Message19Fields]):
                             f_6: list[Message19.M1.M6.M11.M18.M25] | None = None,
                             f_7: Message19.M1.M6.M11.M18.M28 | None = None,
                             f_8: Message19.M1.M6.M11.M18.M29 | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: int
                         f_2: Message19.M1.M6.M11.M18.M22 | None
@@ -254,7 +259,8 @@ class Message19(Message[_Message19Fields]):
                                 self,
                                 *,
                                 f_0: str | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: str
 
@@ -286,7 +292,8 @@ class Message19(Message[_Message19Fields]):
                                 *,
                                 f_0: float | None = None,
                                 f_2: Message19.M1.M6.M11.M18.M23.M31 | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: float
                             f_2: Message19.M1.M6.M11.M18.M23.M31 | None
@@ -314,7 +321,8 @@ class Message19(Message[_Message19Fields]):
                                     self,
                                     *,
                                     f_0: str | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: str
 
@@ -351,7 +359,8 @@ class Message19(Message[_Message19Fields]):
                                 f_0: int | None = None,
                                 f_2: list[Message19.M1.M6.M11.M18.M24.M30] | None = None,
                                 f_4: list[Message19.M1.M6.M11.M18.M24.M32] | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
                             f_2: list[Message19.M1.M6.M11.M18.M24.M30]
@@ -380,7 +389,8 @@ class Message19(Message[_Message19Fields]):
                                     self,
                                     *,
                                     f_0: bytes | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: bytes
 
@@ -422,7 +432,8 @@ class Message19(Message[_Message19Fields]):
                                     f_1: int | None = None,
                                     f_7: Message19.M1.M6.M11.M18.M24.M32.M37 | None = None,
                                     f_8: Message19.M1.M6.M11.M18.M24.M32.M39 | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: int
                                 f_1: int
@@ -452,7 +463,8 @@ class Message19(Message[_Message19Fields]):
                                         self,
                                         *,
                                         f_0: int | None = None,
-                                    ) -> None: ...
+                                    ) -> None:
+                                        pass
 
                                     f_0: int
 
@@ -524,7 +536,8 @@ class Message19(Message[_Message19Fields]):
                                         f_7: int | None = None,
                                         f_8: int | None = None,
                                         f_11: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40] | None = None,
-                                    ) -> None: ...
+                                    ) -> None:
+                                        pass
 
                                     f_0: Message19.M1.M6.M11.M18.M24.M32.M39.E49
                                     f_1: Message19.M1.M6.M11.M18.M24.M32.M39.E50
@@ -620,7 +633,8 @@ class Message19(Message[_Message19Fields]):
                                             f_10: Message19.M1.M6.M11.M18.M24.M32.M39.M40.E56 | None = None,
                                             f_16: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M41] | None = None,
                                             f_17: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42] | None = None,
-                                        ) -> None: ...
+                                        ) -> None:
+                                            pass
 
                                         f_0: int
                                         f_1: bool
@@ -659,7 +673,8 @@ class Message19(Message[_Message19Fields]):
                                                 self,
                                                 *,
                                                 f_0: bool | None = None,
-                                            ) -> None: ...
+                                            ) -> None:
+                                                pass
 
                                             f_0: bool
 
@@ -696,7 +711,8 @@ class Message19(Message[_Message19Fields]):
                                                 f_0: str | None = None,
                                                 f_1: str | None = None,
                                                 f_4: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43 | None = None,
-                                            ) -> None: ...
+                                            ) -> None:
+                                                pass
 
                                             f_0: str
                                             f_1: str
@@ -770,7 +786,8 @@ class Message19(Message[_Message19Fields]):
                                                     f_7: int | None = None,
                                                     f_8: str | None = None,
                                                     f_12: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44 | None = None,
-                                                ) -> None: ...
+                                                ) -> None:
+                                                    pass
 
                                                 f_0: str
                                                 f_1: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.E57
@@ -811,7 +828,8 @@ class Message19(Message[_Message19Fields]):
                                                         *,
                                                         f_0: int | None = None,
                                                         f_2: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45] | None = None,
-                                                    ) -> None: ...
+                                                    ) -> None:
+                                                        pass
 
                                                     f_0: int
                                                     f_2: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45]
@@ -844,7 +862,8 @@ class Message19(Message[_Message19Fields]):
                                                             *,
                                                             f_0: int | None = None,
                                                             f_2: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46 | None = None,
-                                                        ) -> None: ...
+                                                        ) -> None:
+                                                            pass
 
                                                         f_0: int
                                                         f_2: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46 | None
@@ -877,7 +896,8 @@ class Message19(Message[_Message19Fields]):
                                                                 *,
                                                                 f_0: int | None = None,
                                                                 f_4: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47 | None = None,
-                                                            ) -> None: ...
+                                                            ) -> None:
+                                                                pass
 
                                                             f_0: int
                                                             f_4: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47 | None
@@ -910,7 +930,8 @@ class Message19(Message[_Message19Fields]):
                                                                     *,
                                                                     f_0: int | None = None,
                                                                     f_2: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47.M48] | None = None,
-                                                                ) -> None: ...
+                                                                ) -> None:
+                                                                    pass
 
                                                                 f_0: int
                                                                 f_2: list[Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47.M48]
@@ -943,7 +964,8 @@ class Message19(Message[_Message19Fields]):
                                                                         *,
                                                                         f_0: bool | None = None,
                                                                         f_2: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47.M48.M49 | None = None,
-                                                                    ) -> None: ...
+                                                                    ) -> None:
+                                                                        pass
 
                                                                     f_0: bool
                                                                     f_2: Message19.M1.M6.M11.M18.M24.M32.M39.M40.M42.M43.M44.M45.M46.M47.M48.M49 | None
@@ -971,7 +993,8 @@ class Message19(Message[_Message19Fields]):
                                                                             self,
                                                                             *,
                                                                             f_0: bool | None = None,
-                                                                        ) -> None: ...
+                                                                        ) -> None:
+                                                                            pass
 
                                                                         f_0: bool
 
@@ -1363,7 +1386,8 @@ class Message19(Message[_Message19Fields]):
                                 *,
                                 f_0: int | None = None,
                                 f_2: list[Message19.M1.M6.M11.M18.M25.M35] | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
                             f_2: list[Message19.M1.M6.M11.M18.M25.M35]
@@ -1391,7 +1415,8 @@ class Message19(Message[_Message19Fields]):
                                     self,
                                     *,
                                     f_0: str | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: str
 
@@ -1418,7 +1443,8 @@ class Message19(Message[_Message19Fields]):
                                 self,
                                 *,
                                 f_0: bool | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: bool
 
@@ -1480,7 +1506,8 @@ class Message19(Message[_Message19Fields]):
                                 f_5: str | None = None,
                                 f_6: int | None = None,
                                 f_7: int | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
                             f_1: str
@@ -1519,7 +1546,8 @@ class Message19(Message[_Message19Fields]):
                     *,
                     f_0: Message19.M1.M9.E3 | None = None,
                     f_2: Message19.M1.M9.M12 | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: Message19.M1.M9.E3
                 f_2: Message19.M1.M9.M12 | None
@@ -1552,7 +1580,8 @@ class Message19(Message[_Message19Fields]):
                         *,
                         f_0: int | None = None,
                         f_2: Message19.M1.M9.M12.M17 | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: int
                     f_2: Message19.M1.M9.M12.M17 | None
@@ -1585,7 +1614,8 @@ class Message19(Message[_Message19Fields]):
                             *,
                             f_0: int | None = None,
                             f_2: Message19.M1.M9.M12.M17.M26 | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: int
                         f_2: Message19.M1.M9.M12.M17.M26 | None
@@ -1613,7 +1643,8 @@ class Message19(Message[_Message19Fields]):
                                 self,
                                 *,
                                 f_0: int | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
 
@@ -1700,7 +1731,8 @@ class Message19(Message[_Message19Fields]):
                 f_5: list[Message19.M2.M7] | None = None,
                 f_7: Message19.M2.M8 | None = None,
                 f_8: list[Message19.M2.M10] | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             f_0: str
             f_4: list[Message19.M2.M5]
@@ -1736,7 +1768,8 @@ class Message19(Message[_Message19Fields]):
                     *,
                     f_0: int | None = None,
                     f_3: Message19.M2.M5.M13 | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: int
                 f_3: Message19.M2.M5.M13 | None
@@ -1764,7 +1797,8 @@ class Message19(Message[_Message19Fields]):
                         self,
                         *,
                         f_0: int | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: int
 
@@ -1791,7 +1825,8 @@ class Message19(Message[_Message19Fields]):
                     self,
                     *,
                     f_0: Message19.M2.M7.E2 | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: Message19.M2.M7.E2
 
@@ -1858,7 +1893,8 @@ class Message19(Message[_Message19Fields]):
                     self,
                     *,
                     f_0: int | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: int
 
@@ -1895,7 +1931,8 @@ class Message19(Message[_Message19Fields]):
                     f_0: list[str] | None = None,
                     f_1: list[str] | None = None,
                     f_3: Message19.M2.M10.M15 | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: list[str]
                 f_1: list[str]
@@ -1929,7 +1966,8 @@ class Message19(Message[_Message19Fields]):
                         *,
                         f_0: Message19.M2.M10.M15.E4 | None = None,
                         f_2: list[Message19.M2.M10.M15.M20] | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: Message19.M2.M10.M15.E4
                     f_2: list[Message19.M2.M10.M15.M20]
@@ -2052,7 +2090,8 @@ class Message19(Message[_Message19Fields]):
                             f_17: float | None = None,
                             f_24: list[Message19.M2.M10.M15.M20.M21] | None = None,
                             f_25: Message19.M2.M10.M15.M20.M27 | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: str
                         f_1: Message19.M2.M10.M15.M20.E45
@@ -2108,7 +2147,8 @@ class Message19(Message[_Message19Fields]):
                                 f_0: bytes | None = None,
                                 f_2: Message19.M2.M10.M15.M20.M21.M34 | None = None,
                                 f_3: list[Message19.M2.M10.M15.M20.M21.M36] | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: bytes
                             f_2: Message19.M2.M10.M15.M20.M21.M34 | None
@@ -2137,7 +2177,8 @@ class Message19(Message[_Message19Fields]):
                                     self,
                                     *,
                                     f_0: int | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: int
 
@@ -2189,7 +2230,8 @@ class Message19(Message[_Message19Fields]):
                                     f_3: Message19.M2.M10.M15.M20.M21.M36.E48 | None = None,
                                     f_4: list[int] | None = None,
                                     f_5: bytes | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: bool
                                 f_1: int
@@ -2306,7 +2348,8 @@ class Message19(Message[_Message19Fields]):
                                 *,
                                 f_0: int | None = None,
                                 f_4: Message19.M2.M10.M15.M20.M27.M33 | None = None,
-                            ) -> None: ...
+                            ) -> None:
+                                pass
 
                             f_0: int
                             f_4: Message19.M2.M10.M15.M20.M27.M33 | None
@@ -2339,7 +2382,8 @@ class Message19(Message[_Message19Fields]):
                                     *,
                                     f_0: list[int] | None = None,
                                     f_2: list[Message19.M2.M10.M15.M20.M27.M33.M38] | None = None,
-                                ) -> None: ...
+                                ) -> None:
+                                    pass
 
                                 f_0: list[int]
                                 f_2: list[Message19.M2.M10.M15.M20.M27.M33.M38]
@@ -2372,7 +2416,8 @@ class Message19(Message[_Message19Fields]):
                                         *,
                                         f_0: float | None = None,
                                         f_1: int | None = None,
-                                    ) -> None: ...
+                                    ) -> None:
+                                        pass
 
                                     f_0: float
                                     f_1: int
@@ -2605,7 +2650,8 @@ class Message19(Message[_Message19Fields]):
                 f_15: str | None = None,
                 f_16: int | None = None,
                 f_22: Message19.M3.M4 | None = None,
-            ) -> None: ...
+            ) -> None:
+                pass
 
             f_0: str
             f_1: int
@@ -2664,7 +2710,8 @@ class Message19(Message[_Message19Fields]):
                     f_1: str | None = None,
                     f_3: Message19.M3.M4.M14 | None = None,
                     f_4: Message19.M3.M4.M16 | None = None,
-                ) -> None: ...
+                ) -> None:
+                    pass
 
                 f_0: int
                 f_1: str
@@ -2699,7 +2746,8 @@ class Message19(Message[_Message19Fields]):
                         *,
                         f_0: str | None = None,
                         f_2: list[Message19.M3.M4.M14.M19] | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: str
                     f_2: list[Message19.M3.M4.M14.M19]
@@ -2727,7 +2775,8 @@ class Message19(Message[_Message19Fields]):
                             self,
                             *,
                             f_0: int | None = None,
-                        ) -> None: ...
+                        ) -> None:
+                            pass
 
                         f_0: int
 
@@ -4239,7 +4288,8 @@ class Message19(Message[_Message19Fields]):
                         f_295: str | None = None,
                         f_296: int | None = None,
                         f_297: Message19.M3.M4.M16.E44 | None = None,
-                    ) -> None: ...
+                    ) -> None:
+                        pass
 
                     f_0: Message19.M3.M4.M16.E5
                     f_1: int

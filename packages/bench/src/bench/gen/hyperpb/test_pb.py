@@ -186,7 +186,8 @@ class Scalars(Message[_ScalarsFields]):
             b13: bool | None = None,
             b14: str | None = None,
             b15: bytes | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         a1: int
         a2: int
@@ -309,7 +310,8 @@ class Numbers(Message[_NumbersFields]):
             a8: int = 0,
             a9: int = 0,
             aa: int = 0,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         a1: int
         a2: int
@@ -380,7 +382,8 @@ class Repeated(Message[_RepeatedFields]):
             r6: list[int] | None = None,
             r7: list[str] | None = None,
             r8: list[bytes] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         r1: list[int]
         r2: list[int]
@@ -424,7 +427,8 @@ class Graph(Message[_GraphFields]):
             v: int = 0,
             s: Graph | None = None,
             r: list[Graph] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         v: int
         s: Graph | None
@@ -463,7 +467,8 @@ class Oneof(Message[_OneofFields]):
             single: Oneof_[Literal["s1"], int] | None = None,
             multi: Oneof_[Literal["m1"], int] | Oneof_[Literal["m2"], int] | Oneof_[Literal["m3"], int] | Oneof_[Literal["m4"], int] | Oneof_[Literal["m5"], int] | Oneof_[Literal["m6"], int] | Oneof_[Literal["m7"], bool] | Oneof_[Literal["m8"], str] | Oneof_[Literal["m9"], bytes] | Oneof_[Literal["m10"], Oneof] | None = None,
             tail: int = 0,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         single: Oneof_[Literal["s1"], int] | None
         multi: Oneof_[Literal["m1"], int] | Oneof_[Literal["m2"], int] | Oneof_[Literal["m3"], int] | Oneof_[Literal["m4"], int] | Oneof_[Literal["m5"], int] | Oneof_[Literal["m6"], int] | Oneof_[Literal["m7"], bool] | Oneof_[Literal["m8"], str] | Oneof_[Literal["m9"], bytes] | Oneof_[Literal["m10"], Oneof] | None
@@ -1447,7 +1452,8 @@ class Maps(Message[_MapsFields]):
             mcd: dict[str, Enum] | None = None,
             mce: dict[str, str] | None = None,
             mcf: dict[str, bytes] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         m10: dict[int, int]
         m11: dict[int, int]
@@ -1720,7 +1726,8 @@ class MessageMaps(Message[_MessageMapsFields]):
             m9: dict[int, MessageMaps] | None = None,
             ma: dict[int, MessageMaps] | None = None,
             mc: dict[str, MessageMaps] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         scalars: Scalars | None
         m1: dict[int, MessageMaps]
@@ -1761,7 +1768,8 @@ class Pathological(Message[_PathologicalFields]):
             self,
             *,
             x: list[Pathological.Inner] | None = None,
-        ) -> None: ...
+        ) -> None:
+            pass
 
         x: list[Pathological.Inner]
 
@@ -1863,7 +1871,8 @@ class Pathological(Message[_PathologicalFields]):
                 xe: int = 0,
                 xf: int = 0,
                 actual: str = "",
-            ) -> None: ...
+            ) -> None:
+                pass
 
             x1: int
             x2: int
