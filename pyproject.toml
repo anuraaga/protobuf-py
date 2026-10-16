@@ -205,7 +205,7 @@ cmd = "uv run pytest"
 ## Format
 [tool.poe.tasks.format]
 help = "Format source code, sort imports, add license headers (does not format protos, see format-test-protos)"
-sequence = ["format-license-header", "format-python", "format-toml"]
+sequence = ["format-license-header", "format-python", "format-ext", "format-toml"]
 
 [tool.poe.tasks.format-python]
 help = "Format Python files with ruff"
@@ -233,6 +233,7 @@ sequence = [
   "lint-ruff-check",
   "lint-types",
   "lint-ruff-format",
+  "lint-ext",
   "lint-toml-format",
   "lint-toml-lint",
   "lint-license-header",
@@ -318,7 +319,7 @@ sequence = [
 cwd = "packages/bench"
 
 ## Native extension
-[tool.poe.tasks.ext-format]
+[tool.poe.tasks.format-ext]
 help = "Format native extension code (requires Rust)"
 sequence = [
   { cmd = "cargo clippy --fix --allow-dirty" },
@@ -326,7 +327,7 @@ sequence = [
 ]
 cwd = "packages/protobuf-py-ext"
 
-[tool.poe.tasks.ext-lint]
+[tool.poe.tasks.lint-ext]
 help = "Lint native extension code (requires Rust)"
 sequence = [
   { cmd = "cargo clippy" },

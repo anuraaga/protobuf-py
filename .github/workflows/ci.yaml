@@ -43,8 +43,6 @@ jobs:
       - name: Setup rust
         run: rustup update
       - run: uv sync --locked
-      - name: lint protobuf-py-ext
-        run: uv run poe ext-lint
       - run: uv run poe test
 
       # Ensure tests pass without optional dependencies. Issues would come from eager imports, so we go ahead
