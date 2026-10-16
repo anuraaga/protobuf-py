@@ -21,22 +21,23 @@ processes for the simplest way to ensure they use the correct implementation.
 from __future__ import annotations
 
 import importlib.util
-import os
 import re
-import sys
-from typing import TYPE_CHECKING, Literal, cast, get_args
+from typing import TYPE_CHECKING, cast, get_args
 
 import pytest
 from xdist.scheduler import EachScheduling
+
+from tests._implementation import (
+    IMPLEMENTATION_ENV,
+    Implementation,
+    check_implementation,
+    hide_native_extension,
+)
 
 if TYPE_CHECKING:
     from xdist.remote import Producer
 
     from tests._protoc import Protoc
-
-Implementation = Literal["native", "python"]
-
-_IMPLEMENTATION_ENV = "PROTOBUF_PY_TEST_IMPLEMENTATION"
 
 # Evaluated at import, before pytest_configure may hide the extension below.
 _IMPLEMENTATIONS: tuple[Implementation, ...] = (
@@ -46,23 +47,9 @@ _IMPLEMENTATIONS: tuple[Implementation, ...] = (
 )
 
 
-def _process_implementation() -> Implementation:
-    implementation = os.environ.get(_IMPLEMENTATION_ENV, "native")
-    if implementation not in get_args(Implementation):
-        msg = (
-            f"{_IMPLEMENTATION_ENV} must be one of {get_args(Implementation)}, "
-            f"got {implementation!r}"
-        )
-        raise pytest.UsageError(msg)
-    return cast("Implementation", implementation)
-
-
 def pytest_configure(config: pytest.Config) -> None:  # noqa: ARG001
-    # Runs before collection imports protobuf. When pinned to the pure Python
-    # implementation, make the extension unimportable so protobuf falls back
-    # to Python.
-    if _process_implementation() == "python":
-        sys.modules["protobuf_ext"] = None  # pyright: ignore[reportArgumentType]  # ty: ignore[invalid-assignment]
+    # Runs before collection imports protobuf.
+    hide_native_extension()
 
 
 @pytest.fixture(params=_IMPLEMENTATIONS)
@@ -73,14 +60,7 @@ def marshaler_implementation(request: pytest.FixtureRequest) -> Implementation:
 
 @pytest.fixture(autouse=True)
 def _check_marshaler_implementation(marshaler_implementation: Implementation) -> None:
-    from protobuf._native_message import NativeMessageClass  # noqa: PLC0415
-
-    active: Implementation = "native" if NativeMessageClass is not None else "python"
-    assert active == marshaler_implementation, (
-        f"test wants the {marshaler_implementation} implementation but this process "
-        f"has {active}; run through xdist (the default) so each implementation gets "
-        f"its own worker, or pin the process with {_IMPLEMENTATION_ENV}"
-    )
+    check_implementation(marshaler_implementation)
 
 
 _NODEID_IMPLEMENTATION = re.compile(r"\[(native|python)(?:-|\])")
@@ -101,7 +81,7 @@ class ImplementationScheduling(EachScheduling):
         for node, pending in self.node2pending.items():
             if node in self._started:
                 continue
-            implementation = node.gateway.spec.env.get(_IMPLEMENTATION_ENV, "native")
+            implementation = node.gateway.spec.env.get(IMPLEMENTATION_ENV, "native")
             pending[:] = [
                 index
                 for index, nodeid in enumerate(self.node2collection[node])
