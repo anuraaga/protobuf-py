@@ -501,7 +501,7 @@ googleapis-googleapis-bufbuild-py = { index = "buf" }
 
 [tool.uv.workspace]
 members = [
-  "packages/protobuf",
+  "packages/protobuf-py",
   "packages/protobuf-py-ext",
   "packages/protoc-gen-py",
   "packages/bench",

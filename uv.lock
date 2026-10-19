@@ -202,7 +202,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf-py" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -227,7 +227,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf-py" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -735,7 +735,7 @@ wheels = [
 [[package]]
 name = "protobuf-py"
 version = "0.7.0"
-source = { editable = "packages/protobuf" }
+source = { editable = "packages/protobuf-py" }
 dependencies = [
     { name = "protobuf-py-core" },
     { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')" },
@@ -855,7 +855,7 @@ dev = [
     { name = "maturin", specifier = "==1.15.0" },
     { name = "poethepoet", specifier = "==0.49.0" },
     { name = "protobuf", specifier = "==7.36.2" },
-    { name = "protobuf-py", editable = "packages/protobuf" },
+    { name = "protobuf-py", editable = "packages/protobuf-py" },
     { name = "protobuf-py-bench", editable = "packages/bench" },
     { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
     { name = "protoc-runner", specifier = "==36.2" },
@@ -876,7 +876,7 @@ dev-optional = [
     { name = "example", editable = "examples/protobuf" },
     { name = "example-plugin", editable = "examples/plugin" },
     { name = "googleapis-googleapis-bufbuild-py", specifier = "==0.6.0.1.20261015202054+8ac61b9e5023", index = "https://buf.build/gen/python" },
-    { name = "protobuf-py", editable = "packages/protobuf" },
+    { name = "protobuf-py", editable = "packages/protobuf-py" },
     { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
     { name = "pydantic", specifier = "==2.14.1" },
 ]
@@ -938,7 +938,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf-py" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "upstream-protobuf", editable = "packages/upstream-protobuf" }]

@@ -124,7 +124,7 @@ jobs:
 
       - name: build protobuf-py
         run: uv build
-        working-directory: packages/protobuf
+        working-directory: packages/protobuf-py
 
       - name: build protoc-gen-py
         run: uv build
