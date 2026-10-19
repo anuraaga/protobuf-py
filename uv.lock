@@ -8,6 +8,7 @@ members = [
     "example-plugin",
     "protobuf-py",
     "protobuf-py-bench",
+    "protobuf-py-core",
     "protobuf-py-ext",
     "protoc-gen-py",
     "upstream-protobuf",
@@ -201,7 +202,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "." }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -226,7 +227,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "." }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -734,9 +735,42 @@ wheels = [
 [[package]]
 name = "protobuf-py"
 version = "0.7.0"
+source = { editable = "packages/protobuf" }
+dependencies = [
+    { name = "protobuf-py-core" },
+    { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "protobuf-py-core", editable = "." },
+    { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')", editable = "packages/protobuf-py-ext" },
+]
+
+[[package]]
+name = "protobuf-py-bench"
+version = "0.0.1"
+source = { editable = "packages/bench" }
+dependencies = [
+    { name = "buf-bin" },
+    { name = "fix-protobuf-imports" },
+    { name = "protobuf" },
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "buf-bin", specifier = "==1.74.0" },
+    { name = "fix-protobuf-imports", specifier = "==0.1.7" },
+    { name = "protobuf", specifier = "==7.36.2" },
+    { name = "pyyaml", specifier = "==6.0.3" },
+]
+
+[[package]]
+name = "protobuf-py-core"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
-    { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')" },
     { name = "typing-extensions" },
 ]
 
@@ -752,6 +786,7 @@ dev = [
     { name = "maturin" },
     { name = "poethepoet" },
     { name = "protobuf" },
+    { name = "protobuf-py" },
     { name = "protobuf-py-bench" },
     { name = "protoc-gen-py" },
     { name = "protoc-runner" },
@@ -769,17 +804,18 @@ dev = [
     { name = "upstream-protobuf" },
 ]
 dev-optional = [
+    { name = "example" },
+    { name = "example-plugin" },
+    { name = "googleapis-googleapis-bufbuild-py" },
+    { name = "protobuf-py" },
+    { name = "protoc-gen-py" },
     { name = "pydantic" },
 ]
 dev-required = [
     { name = "buf-bin" },
-    { name = "example" },
-    { name = "example-plugin" },
-    { name = "googleapis-googleapis-bufbuild-py" },
     { name = "hypothesis" },
     { name = "license-header" },
     { name = "poethepoet" },
-    { name = "protoc-gen-py" },
     { name = "protoc-runner" },
     { name = "pyright" },
     { name = "pytest" },
@@ -805,10 +841,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')", editable = "packages/protobuf-py-ext" },
-    { name = "typing-extensions", specifier = ">=4.13.0" },
-]
+requires-dist = [{ name = "typing-extensions", specifier = ">=4.13.0" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -822,6 +855,7 @@ dev = [
     { name = "maturin", specifier = "==1.15.0" },
     { name = "poethepoet", specifier = "==0.49.0" },
     { name = "protobuf", specifier = "==7.36.2" },
+    { name = "protobuf-py", editable = "packages/protobuf" },
     { name = "protobuf-py-bench", editable = "packages/bench" },
     { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
     { name = "protoc-runner", specifier = "==36.2" },
@@ -838,16 +872,19 @@ dev = [
     { name = "ty", specifier = "==0.0.89" },
     { name = "upstream-protobuf", editable = "packages/upstream-protobuf" },
 ]
-dev-optional = [{ name = "pydantic", specifier = "==2.14.1" }]
-dev-required = [
-    { name = "buf-bin", specifier = "==1.74.0" },
+dev-optional = [
     { name = "example", editable = "examples/protobuf" },
     { name = "example-plugin", editable = "examples/plugin" },
     { name = "googleapis-googleapis-bufbuild-py", specifier = "==0.6.0.1.20261015202054+8ac61b9e5023", index = "https://buf.build/gen/python" },
+    { name = "protobuf-py", editable = "packages/protobuf" },
+    { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
+    { name = "pydantic", specifier = "==2.14.1" },
+]
+dev-required = [
+    { name = "buf-bin", specifier = "==1.74.0" },
     { name = "hypothesis", specifier = "==6.170.1" },
     { name = "license-header", specifier = "==0.0.1" },
     { name = "poethepoet", specifier = "==0.49.0" },
-    { name = "protoc-gen-py", editable = "packages/protoc-gen-py" },
     { name = "protoc-runner", specifier = "==36.2" },
     { name = "pyright", specifier = "==1.1.414" },
     { name = "pytest", specifier = "==9.1.1" },
@@ -870,25 +907,6 @@ dev-subprojects = [
 docs = [
     { name = "mkdocstrings-python", specifier = "==2.0.9" },
     { name = "zensical", specifier = "==0.0.71" },
-]
-
-[[package]]
-name = "protobuf-py-bench"
-version = "0.0.1"
-source = { editable = "packages/bench" }
-dependencies = [
-    { name = "buf-bin" },
-    { name = "fix-protobuf-imports" },
-    { name = "protobuf" },
-    { name = "pyyaml" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "buf-bin", specifier = "==1.74.0" },
-    { name = "fix-protobuf-imports", specifier = "==0.1.7" },
-    { name = "protobuf", specifier = "==7.36.2" },
-    { name = "pyyaml", specifier = "==6.0.3" },
 ]
 
 [[package]]
@@ -920,7 +938,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "protobuf-py", editable = "." }]
+requires-dist = [{ name = "protobuf-py", editable = "packages/protobuf" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "upstream-protobuf", editable = "packages/upstream-protobuf" }]

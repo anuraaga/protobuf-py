@@ -119,8 +119,12 @@ jobs:
 
       - run: uv sync --frozen
 
+      - name: build protobuf-py-core
+        run: uv build
+
       - name: build protobuf-py
         run: uv build
+        working-directory: packages/protobuf
 
       - name: build protoc-gen-py
         run: uv build
