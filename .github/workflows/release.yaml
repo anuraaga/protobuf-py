@@ -119,7 +119,7 @@ jobs:
 
       - run: uv sync --frozen
 
-      - name: build protobuf-py-core
+      - name: build protobuf-py-pure
         run: uv build
 
       - name: build protobuf-py

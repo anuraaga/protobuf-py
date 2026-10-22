@@ -1,8 +1,8 @@
 [project]
-name = "protobuf-py-core"
+name = "protobuf-py-pure"
 version = "0.7.0"
-description = "Pure Python core of protobuf-py, idiomatic Protocol Buffers for Python."
-readme = "README.core.md"
+description = "Pure Python implementation of protobuf-py, idiomatic Protocol Buffers for Python."
+readme = "README.pure.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
@@ -122,8 +122,8 @@ sequence = [
   { cmd = "uv version --package protobuf-py --bump=${_version}" },
   { cmd = "uv version --package protobuf-py-ext --bump=${_version}" },
   { cmd = "uv version --package protoc-gen-py --bump=${_version}" },
-  { shell = "uv add --raw protobuf-py-core==$(uv version --short) --package protoc-gen-py" },
-  { shell = "uv add --raw protobuf-py-core==$(uv version --short) --package protobuf-py" },
+  { shell = "uv add --raw protobuf-py==$(uv version --short) --package protoc-gen-py" },
+  { shell = "uv add --raw protobuf-py-pure==$(uv version --short) --package protobuf-py" },
   { shell = "uv add --raw \"protobuf-py-ext==$(uv version --short); platform_python_implementation == 'CPython' and ((platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')) or (platform_system == 'Darwin' and platform_machine == 'arm64') or (platform_system == 'Windows' and (platform_machine == 'AMD64' or platform_machine == 'ARM64')))\" --package protobuf-py" },
   # Regenerate all code since the version number is embedded
   "bootstrap",
@@ -489,7 +489,7 @@ module-name = ["protobuf"]
 
 [tool.uv.sources]
 protobuf-py = { workspace = true }
-protobuf-py-core = { workspace = true }
+protobuf-py-pure = { workspace = true }
 protoc-gen-py = { workspace = true }
 upstream-protobuf = { workspace = true }
 example = { workspace = true }

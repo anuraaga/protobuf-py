@@ -8,8 +8,8 @@ members = [
     "example-plugin",
     "protobuf-py",
     "protobuf-py-bench",
-    "protobuf-py-core",
     "protobuf-py-ext",
+    "protobuf-py-pure",
     "protoc-gen-py",
     "upstream-protobuf",
 ]
@@ -737,14 +737,14 @@ name = "protobuf-py"
 version = "0.7.0"
 source = { editable = "packages/protobuf-py" }
 dependencies = [
-    { name = "protobuf-py-core" },
     { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')" },
+    { name = "protobuf-py-pure" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "protobuf-py-core", editable = "." },
     { name = "protobuf-py-ext", marker = "(platform_machine == 'arm64' and platform_python_implementation == 'CPython' and sys_platform == 'darwin') or (platform_machine == 'aarch64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'x86_64' and platform_python_implementation == 'CPython' and sys_platform == 'linux') or (platform_machine == 'AMD64' and platform_python_implementation == 'CPython' and sys_platform == 'win32') or (platform_machine == 'ARM64' and platform_python_implementation == 'CPython' and sys_platform == 'win32')", editable = "packages/protobuf-py-ext" },
+    { name = "protobuf-py-pure", editable = "." },
 ]
 
 [[package]]
@@ -767,7 +767,22 @@ requires-dist = [
 ]
 
 [[package]]
-name = "protobuf-py-core"
+name = "protobuf-py-ext"
+version = "0.7.0"
+source = { editable = "packages/protobuf-py-ext" }
+
+[package.dev-dependencies]
+dev = [
+    { name = "maturin" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+dev = [{ name = "maturin", specifier = "==1.15.0" }]
+
+[[package]]
+name = "protobuf-py-pure"
 version = "0.7.0"
 source = { editable = "." }
 dependencies = [
@@ -908,21 +923,6 @@ docs = [
     { name = "mkdocstrings-python", specifier = "==2.0.9" },
     { name = "zensical", specifier = "==0.0.71" },
 ]
-
-[[package]]
-name = "protobuf-py-ext"
-version = "0.7.0"
-source = { editable = "packages/protobuf-py-ext" }
-
-[package.dev-dependencies]
-dev = [
-    { name = "maturin" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-dev = [{ name = "maturin", specifier = "==1.15.0" }]
 
 [[package]]
 name = "protoc-gen-py"

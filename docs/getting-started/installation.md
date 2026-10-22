@@ -21,7 +21,7 @@ You also need the **Buf CLI** to compile `.proto` files and run the code generat
 The easiest way to get it is via the **`buf-bin`** package, which installs the `buf` binary into your virtual environment.
 
 !!! tip "Pure Python"
-    If you need a pure Python installation on every platform, for example in environments where you cannot ship compiled code, depend on **`protobuf-py-core`** instead of `protobuf-py`.
+    If you need a pure Python installation on every platform, for example in environments where you cannot ship compiled code, depend on **`protobuf-py-pure`** instead of `protobuf-py`.
     It is the same runtime without the native extension and has no third-party dependencies.
 
 ## Installing

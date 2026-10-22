@@ -42,7 +42,7 @@ For a list of other useful tasks, run `uv run poe`.
 ### Marshaler Implementations
 
 protobuf-py consists of two marshaler implementations, one in pure Python under
-[src](../src), published as `protobuf-py-core`, and a Rust native extension under
+[src](../src), published as `protobuf-py-pure`, and a Rust native extension under
 [protobuf-py-ext](../packages/protobuf-py-ext). The `protobuf-py` package under
 [packages/protobuf-py](../packages/protobuf-py) is the primary entrypoint to the library
 for most users.
